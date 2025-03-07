@@ -329,6 +329,8 @@ function OmniBar:OnInitialize()
         event = "SPELL_INTERRUPT"
     }
     self:SetupOptions()
+    self:SetupFlashAnimation()
+
 end
 
 local function ShouldPreventReset()
@@ -981,7 +983,8 @@ function OmniBar_CreateIcon(self)
     local key = name .. "Icon" .. self.numIcons
     local f = _G[key] or CreateFrame("Button", key, _G[name .. "Icons"], "OmniBarButtonTemplate")
 
-
+    f.flash:SetAlpha(0)
+    f.NewItemTexture:SetAlpha(0)
     if not f.borderTop then
         f.borderTop = f:CreateTexture(nil, "OVERLAY")
         f.borderBottom = f:CreateTexture(nil, "OVERLAY")
@@ -1294,16 +1297,92 @@ local function IconIsUnit(iconGUID, guid)
     end
     return iconGUID == guid
 end
+function OmniBar:SetupFlashAnimation()
+    -- Create a frame for the flash overlay at addon level
+    self.flashFrame = CreateFrame("Frame", nil, UIParent)
+    self.flashFrame:SetFrameStrata("TOOLTIP")
+    
+    -- Create the star texture
+    local texture = self.flashFrame:CreateTexture(nil, "OVERLAY", nil, 7)
+    texture:SetTexture([[Interface\Cooldown\star4]])
+    texture:SetAlpha(0)
+    texture:SetAllPoints(self.flashFrame)
+    texture:SetBlendMode("ADD")
+    
+    -- Create the animation group
+    local animation = texture:CreateAnimationGroup()
+    animation:SetScript("OnFinished", function()
+        self.isFlashing = false
+        self.flashFrame:Hide()
+    end)
+    
+    -- Setup the alpha animation
+    local alpha = animation:CreateAnimation("Alpha")
+    alpha:SetFromAlpha(0)
+    alpha:SetToAlpha(1)
+    alpha:SetDuration(0)
+    alpha:SetOrder(1)
+    
+    -- Setup the first scale animation (instantly go to 1.5x)
+    local scale1 = animation:CreateAnimation("Scale")
+    scale1:SetScale(1.5, 1.5)
+    scale1:SetDuration(0)
+    scale1:SetOrder(1)
+    
+    -- Setup the second scale animation (shrink to 0)
+    local scale2 = animation:CreateAnimation("Scale")
+    scale2:SetScale(0, 0)
+    scale2:SetDuration(0.3)
+    scale2:SetOrder(2)
+    
+    -- Setup the rotation animation
+    local rotation = animation:CreateAnimation("Rotation")
+    rotation:SetDegrees(90)
+    rotation:SetDuration(0.3)
+    rotation:SetOrder(2)
+    
+    -- Store references
+    self.flashTexture = texture
+    self.flashAnimation = animation
+    self.isFlashing = false
+end
 
 local function OmniBar_StartAnimation(self, icon)
     if (not self.settings.glow) then return end
-    icon.flashAnim:Play()
-    icon.newitemglowAnim:Play()
+    
+    -- Stop any existing animations first to ensure they don't show
+    if icon.flashAnim:IsPlaying() then icon.flashAnim:Stop() end
+    if icon.newitemglowAnim:IsPlaying() then icon.newitemglowAnim:Stop() end
+    
+    -- Hide the original glow elements
+    icon.flash:SetAlpha(0)
+    icon.NewItemTexture:SetAlpha(0)
+    
+    -- Use our new flash animation
+    OmniBar.flashFrame:ClearAllPoints()
+    OmniBar.flashFrame:SetPoint("TOPLEFT", icon, "TOPLEFT", -3, 3)
+    OmniBar.flashFrame:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", 3, -3)
+    OmniBar.flashFrame:Show()
+    
+    OmniBar.isFlashing = true
+    OmniBar.flashAnimation:Stop()
+    OmniBar.flashAnimation:Play()
+    
+    -- We completely skip playing the original animations
+    -- icon.flashAnim:Play()
+    -- icon.newitemglowAnim:Play()
 end
 
 local function OmniBar_StopAnimation(self, icon)
     if icon.flashAnim:IsPlaying() then icon.flashAnim:Stop() end
     if icon.newitemglowAnim:IsPlaying() then icon.newitemglowAnim:Stop() end
+    
+    -- Stop our flash animation if it's playing
+    if OmniBar.isFlashing and OmniBar.flashAnimation:IsPlaying() then
+        OmniBar.flashAnimation:Stop()
+        OmniBar.isFlashing = false
+        OmniBar.flashFrame:Hide()
+    end
 end
 
 local function IsIconUsed(icon)
@@ -1997,7 +2076,29 @@ function OmniBar_OnEvent(self, event, ...)
             end)
         end
     elseif event == "ZONE_CHANGED_NEW_AREA" then
+        UpdateArenaState()
+
+
+        if ShouldPreventReset() and ARENA_STATE.inArena then
+            OmniBar_UpdateAllBorders(self)
+            return
+        end
+
+        local inInstance, instanceType = IsInInstance()
+
+        self.inArena = (inInstance and instanceType == "arena")
+
+        if not self.inArena then
+            self.arenaSpecMap = self.arenaSpecMap or {}
+            wipe(self.arenaSpecMap)
+        end
         OmniBar_SetZone(self, true)
+        
+        if self.inArena and self.settings.showUnused then
+            C_Timer.After(0.5, function()
+                ForceArenaIconInitialization(self)
+            end)
+        end
     elseif event == "UPDATE_BATTLEFIELD_STATUS" then
         if self.disabled or self.zone ~= "pvp" then return end
         if (not self.rated) and IsRatedBattleground() then OmniBar_SetZone(self) end
@@ -2048,7 +2149,11 @@ function OmniBar_OnEvent(self, event, ...)
 
 
         UpdateArenaState()
-
+        if updateType == "cleared" then
+			wipe(self.detected)
+			wipe(self.spellCasts)
+			OmniBar_Refresh(self)
+		end
 
         if updateType == "destroyed" then
             local arenaIndex = tonumber(unit:match("%d+"))
