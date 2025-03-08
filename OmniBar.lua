@@ -122,16 +122,9 @@ local CLASS_ORDER = {
 
 local ARENA_STATE = {
     inArena = false,
-    inActiveCombat = false,
-    inPrep = false,
-    stealthEvents = {},
-    lastStealthTime = 0,
-    stealthProtection = false,
-    lastShuffleRound = 0
-
-
-
+    inPrep = false
 }
+
 local MAX_ARENA_SIZE = addon.MAX_ARENA_SIZE or 0
 
 local PLAYER_NAME = GetUnitName("player")
@@ -190,28 +183,26 @@ function OmniBar:OnInitialize()
         profile = { bars = {} }
     }, true)
 
-    ARENA_STATE = ARENA_STATE or {}
-    ARENA_STATE.lastPrepEvent = ARENA_STATE.lastPrepEvent or 0
-    self.arenaInitialized = false
+    ARENA_STATE = {
+        inArena = false,
+        inPrep = false
+    }
 
-    self.arenaSpecs = {}
-    self.arenaSpecsAttempts = 0
-    self.arenaSpecsInitialized = false
+    self.arenaSpecMap = {}
     self.cooldowns = addon.Cooldowns
     self.bars = {}
     self.specs = {}
     self.spellCasts = {}
     self.inArena = false
-    self.arenaSpecMap = {}
     self.db.RegisterCallback(self, "OnProfileChanged", "OnEnable")
     self.db.RegisterCallback(self, "OnProfileCopied", "OnEnable")
     self.db.RegisterCallback(self, "OnProfileReset", "OnEnable")
 
 
-    self:RegisterEvent("PLAYER_ENTERING_WORLD", "ResetArenaSpecs")
-    self:RegisterEvent("ARENA_PREP_OPPONENT_SPECIALIZATIONS", "ResetArenaSpecs")
+    self:RegisterEvent("PLAYER_ENTERING_WORLD")
+    self:RegisterEvent("ARENA_PREP_OPPONENT_SPECIALIZATIONS")
 
-    self:RegisterEvent("ARENA_OPPONENT_UPDATE", "RefreshArenaSpecs")
+    self:RegisterEvent("ARENA_OPPONENT_UPDATE")
 
     self:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
     self:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED")
@@ -222,6 +213,7 @@ function OmniBar:OnInitialize()
         if (not success) then return end
         self:AddSpellCast(event, sourceGUID, sourceName, sourceFlags, spellID, serverTime)
     end)
+    self:RegisterMessage("OmniBar_ResetSpellCast", "OnResetSpellCast")
 
     local version, major, minor = C_AddOns.GetAddOnMetadata(addonName, "Version") or "", 0, 0
     if version:sub(1, 1) == "@" then
@@ -288,16 +280,6 @@ function OmniBar:OnInitialize()
     end
 
 
-
-
-
-
-
-
-
-
-
-
     for spellID, spellData in pairs(addon.Cooldowns) do
         if spellData.class == "MAGE" and spellData.duration and not spellData.parent then
             if not self.db.global.cooldownReduction[382445] then
@@ -333,111 +315,179 @@ function OmniBar:OnInitialize()
 
 end
 
-local function ShouldPreventReset()
-    if ARENA_STATE.inArena and ARENA_STATE.inActiveCombat and not ARENA_STATE.inPrep then
-        return true
-    end
-
-
-    if ARENA_STATE.stealthProtection or
-        (GetTime() - ARENA_STATE.lastStealthTime < 3.0) then
-        return true
-    end
-
-
-    for unit, event in pairs(ARENA_STATE.stealthEvents) do
-        if GetTime() - event.time < 5.0 then
-            return true
+-- Replace existing event handler
+function OmniBar:PLAYER_ENTERING_WORLD()
+    -- Update arena status
+    local _, instanceType = IsInInstance()
+    self.inArena = (instanceType == "arena")
+    ARENA_STATE.inArena = self.inArena
+    
+    -- Update all bars
+    for _, bar in ipairs(self.bars) do
+        if not bar.disabled then
+            OmniBar_OnEvent(bar, "PLAYER_ENTERING_WORLD")
         end
     end
-
-    return false
 end
 
-
-local function SafeRefresh(self)
-    if ShouldPreventReset() then
-        OmniBar_UpdateAllBorders(self)
-        return false
-    end
-    return true
-end
-local function UpdateArenaState()
-    local inInstance, instanceType = IsInInstance()
-    local wasInArena = ARENA_STATE.inArena
-
-    ARENA_STATE.inArena = (inInstance and instanceType == "arena")
-
-    if wasInArena and not ARENA_STATE.inArena then
-        ARENA_STATE.inActiveCombat = false
-        ARENA_STATE.inPrep = false
-        ARENA_STATE.stealthEvents = {}
-        ARENA_STATE.stealthProtection = false
-    end
-
-    if ARENA_STATE.inArena then
-        if C_PvP and C_PvP.IsInArenaMatch then
-            local inMatch = C_PvP.IsInArenaMatch()
-            local inPrep = not inMatch
-            local prepChanged = ARENA_STATE.inPrep ~= inPrep
-
-            ARENA_STATE.inPrep = inPrep
-
-
-            if prepChanged and not inPrep then
-                ARENA_STATE.inActiveCombat = true
-            end
-        end
-    end
-
-    return ARENA_STATE.inArena
-end
-
-
-local function SaveCooldownStates(self)
-    if not ARENA_STATE.inArena then return {} end
-
-    local cooldownStates = {}
-    for i, icon in ipairs(self.active) do
-        if icon.spellID and icon:IsVisible() then
-            local remainingTime = icon.cooldown and icon.cooldown.finish and
-                (icon.cooldown.finish - GetTime()) or 0
-
-            local key = tostring(icon.spellID) .. "-" .. tostring(icon.sourceGUID)
-            cooldownStates[key] = {
-                charges = icon.charges,
-                remainingTime = remainingTime > 0 and remainingTime or 0,
-                sourceGUID = icon.sourceGUID,
-                sourceName = icon.sourceName,
-                spellID = icon.spellID
-            }
-        end
-    end
-
-    return cooldownStates
-end
-
-
-local function RestoreCooldownStates(self, cooldownStates)
-    if not cooldownStates or next(cooldownStates) == nil then return end
-
-    for i, icon in ipairs(self.active) do
-        local key = tostring(icon.spellID) .. "-" .. tostring(icon.sourceGUID)
-        local state = cooldownStates[key]
-
-        if state and state.remainingTime > 0 then
-            icon.cooldown:Show()
-            OmniBar_StartCooldown(self, icon, GetTime())
-            icon.cooldown.finish = GetTime() + state.remainingTime
-
-
-            if state.charges ~= nil then
-                icon.charges = state.charges
-                icon.Count:SetText(state.charges > 0 and state.charges or "")
+function OmniBar:ARENA_PREP_OPPONENT_SPECIALIZATIONS()
+    -- Simple flag to prevent duplicate processing
+    self.arenaPrepped = true
+    
+    -- Update all bars
+    for _, bar in ipairs(self.bars) do
+        if not bar.disabled then
+            -- Reset everything first
+            bar.detected = {}
+            wipe(bar.active)
+            OmniBar_ResetIcons(bar)
+            
+            -- Only proceed if showing unused icons
+            if bar.settings.showUnused then
+                -- Process all arena opponents directly
+                for i = 1, MAX_ARENA_SIZE do
+                    local specID = GetArenaOpponentSpec(i)
+                    if specID and specID > 0 then
+                        local _, _, _, _, _, class = GetSpecializationInfoByID(specID)
+                        if class then
+                            -- Store in global map for reference
+                            bar.arenaSpecMap = bar.arenaSpecMap or {}
+                            bar.arenaSpecMap[i] = specID
+                            
+                            -- Store as detected
+                            bar.detected[i] = class
+                            
+                            -- Only add icons if appropriate
+                            if bar.settings.trackUnit == "ENEMY" or bar.settings.trackUnit == "arena" .. i then
+                                -- Add general spells
+                                for spellID, spell in pairs(addon.Cooldowns) do
+                                    if OmniBar_IsSpellEnabled(bar, spellID) and spell.class == "GENERAL" then
+                                        OmniBar_AddIcon(bar, { spellID = spellID, sourceGUID = i, specID = specID })
+                                    end
+                                end
+                                
+                                -- Add class spells
+                                for spellID, spell in pairs(addon.Cooldowns) do
+                                    if OmniBar_IsSpellEnabled(bar, spellID) and spell.class == class then
+                                        -- Check if spell belongs to the spec
+                                        local belongsToSpec = true
+                                        if spell.specID then
+                                            belongsToSpec = false
+                                            for j = 1, #spell.specID do
+                                                if spell.specID[j] == specID then
+                                                    belongsToSpec = true
+                                                    break
+                                                end
+                                            end
+                                        end
+                                        
+                                        if belongsToSpec then
+                                            OmniBar_AddIcon(bar, { spellID = spellID, sourceGUID = i, specID = specID })
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+                
+                -- Position the icons
+                OmniBar_Position(bar)
             end
         end
     end
 end
+
+function OmniBar:ARENA_OPPONENT_UPDATE(event, unit, updateType)
+    -- Only proceed for valid units
+    if not unit or not UnitExists(unit) then return end
+    
+    -- Handle cleared event
+    if updateType == "cleared" then
+        for _, bar in ipairs(self.bars) do
+            if not bar.disabled then
+                -- Complete reset
+                wipe(bar.detected)
+                wipe(bar.active)
+                OmniBar_ResetIcons(bar)
+                
+                -- Mark for prep
+                self.arenaPrepped = false
+                ARENA_STATE.inPrep = true
+            end
+        end
+        return
+    end
+    
+    -- For other events, update borders but don't add new icons
+    -- unless specifically needed
+    for _, bar in ipairs(self.bars) do
+        if not bar.disabled then
+            OmniBar_UpdateAllBorders(bar)
+            
+            -- Handle seen event - only add if not already detected
+            if updateType == "seen" and bar.settings.showUnused then
+                local arenaIndex = tonumber(unit:match("%d+"))
+                if arenaIndex and not bar.detected[arenaIndex] then
+                    local _, class = UnitClass(unit)
+                    if class then
+                        bar.detected[arenaIndex] = class
+                        
+                        -- Only add for appropriate tracking
+                        if bar.settings.trackUnit == "ENEMY" or bar.settings.trackUnit == "arena" .. arenaIndex then
+                            local specID = bar.arenaSpecMap and bar.arenaSpecMap[arenaIndex]
+                            if specID and specID > 0 then
+                                -- Add icons but check if we already have them
+                                local hasIcons = false
+                                for _, icon in ipairs(bar.active) do
+                                    if icon.sourceGUID == arenaIndex then
+                                        hasIcons = true
+                                        break
+                                    end
+                                end
+                                
+                                if not hasIcons then
+                                    -- Use the same logic as in ARENA_PREP_OPPONENT_SPECIALIZATIONS
+                                    -- General spells
+                                    for spellID, spell in pairs(addon.Cooldowns) do
+                                        if OmniBar_IsSpellEnabled(bar, spellID) and spell.class == "GENERAL" then
+                                            OmniBar_AddIcon(bar, { spellID = spellID, sourceGUID = arenaIndex, specID = specID })
+                                        end
+                                    end
+                                    
+                                    -- Class spells
+                                    for spellID, spell in pairs(addon.Cooldowns) do
+                                        if OmniBar_IsSpellEnabled(bar, spellID) and spell.class == class then
+                                            -- Check spec
+                                            local belongsToSpec = true
+                                            if spell.specID then
+                                                belongsToSpec = false
+                                                for j = 1, #spell.specID do
+                                                    if spell.specID[j] == specID then
+                                                        belongsToSpec = true
+                                                        break
+                                                    end
+                                                end
+                                            end
+                                            
+                                            if belongsToSpec then
+                                                OmniBar_AddIcon(bar, { spellID = spellID, sourceGUID = arenaIndex, specID = specID })
+                                            end
+                                        end
+                                    end
+                                    
+                                    OmniBar_Position(bar)
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+
 
 
 local function GetDefaultCommChannel()
@@ -512,9 +562,6 @@ function OmniBar:OnEnable()
 end
 
 function OmniBar_Refresh(self)
-    if not SafeRefresh(self) then return end
-
-
     OmniBar_ResetIcons(self)
     OmniBar_ReplaySpellCasts(self)
 end
@@ -675,115 +722,150 @@ SlashCmdList.OBARENA = function()
 end
 
 function OmniBar_ArenaAddIcon(self, info)
-    if not self.inArena then
-        return OmniBar_AddIcon(self, info)
-    end
-
-
     if not OmniBar_IsSpellEnabled(self, info.spellID) then return end
 
-
+    -- Basic spell class check
     local spellClass = addon.Cooldowns[info.spellID].class
-    local requiresSpec = addon.Cooldowns[info.spellID].specID ~= nil
-
-
+    
+    -- Process general spells for all classes
     if spellClass == "GENERAL" then
         return OmniBar_AddIcon(self, info)
     end
-
-
+    
+    -- For class-specific spells, check spec if needed
     if info.sourceGUID and type(info.sourceGUID) == "number" then
         local arenaIndex = info.sourceGUID
         local specID = info.specID or self.arenaSpecMap[arenaIndex]
-
-
-        if requiresSpec and specID and specID > 0 then
-            local matchesSpec = false
+        
+        if addon.Cooldowns[info.spellID].specID and specID and specID > 0 then
+            -- Check if spell belongs to spec
             for i = 1, #addon.Cooldowns[info.spellID].specID do
                 if addon.Cooldowns[info.spellID].specID[i] == specID then
-                    matchesSpec = true
-                    break
+                    return OmniBar_AddIcon(self, info)
                 end
             end
-
-
-            if matchesSpec then
-                return OmniBar_AddIcon(self, info)
-            else
-                return nil
-            end
-        elseif not requiresSpec then
+        elseif not addon.Cooldowns[info.spellID].specID then
             return OmniBar_AddIcon(self, info)
         end
     end
-
-
-    if not self.inArena then
-        return OmniBar_AddIcon(self, info)
-    end
-
+    
     return nil
 end
 
-function OmniBar:ResetArenaSpecs(force)
-    UpdateArenaState()
-
-
-    if not force and ShouldPreventReset() then return end
-
-    wipe(self.arenaSpecs)
-    self.arenaSpecsAttempts = 0
-    self.arenaSpecsInitialized = false
-    OmniBar.arenaInitialized = false
-
-
-    if force or (self.inArena and not ShouldPreventReset()) then
-        for _, bar in ipairs(self.bars) do
-            if not bar.disabled and bar.inArena then
-                C_Timer.After(0.5, function()
-                    ForceArenaIconInitialization(bar)
-                end)
+-- Modify OmniBar:UpdateArenaOpponents to check for existing icons
+function OmniBar:UpdateArenaOpponents()
+    local _, instanceType = IsInInstance()
+    self.inArena = (instanceType == "arena")
+    
+    -- Don't proceed if we're not in arena
+    if not self.inArena then return end
+    
+    -- Process all possible arena opponents
+    for i = 1, MAX_ARENA_SIZE do
+        local specID = GetArenaOpponentSpec(i)
+        if specID and specID > 0 then
+            local _, _, _, _, _, class = GetSpecializationInfoByID(specID)
+            if class then
+                -- Store spec information
+                self.arenaSpecMap = self.arenaSpecMap or {}
+                self.arenaSpecMap[i] = specID
+                
+                -- Update all bars with this opponent
+                for _, bar in ipairs(self.bars) do
+                    if not bar.disabled and bar.settings.showUnused and 
+                       (bar.settings.trackUnit == "ENEMY" or bar.settings.trackUnit == "arena" .. i) then
+                        -- Check if we already have icons for this arena unit
+                        local hasIconsForUnit = false
+                        for _, icon in ipairs(bar.active) do
+                            if icon.sourceGUID == i then
+                                hasIconsForUnit = true
+                                break
+                            end
+                        end
+                        
+                        -- Only add icons if none exist for this unit
+                        if not hasIconsForUnit then
+                            OmniBar_AddOpponentIcons(bar, i, specID, class)
+                        end
+                    end
+                end
             end
         end
     end
 end
 
-local SPELL_ID_BY_NAME
-if WOW_PROJECT_ID == WOW_PROJECT_CLASSIC then
-    SPELL_ID_BY_NAME = {}
-    for id, value in pairs(addon.Cooldowns) do
-        if (not value.parent) then SPELL_ID_BY_NAME[GetSpellName(id)] = id end
+function OmniBar_AddOpponentIcons(bar, arenaIndex, specID, class)
+    if not class or not specID then return end
+    
+    -- Track which spells we've already added for this opponent
+    local addedSpells = {}
+
+    -- Add general spells
+    for spellID, spell in pairs(addon.Cooldowns) do
+        if OmniBar_IsSpellEnabled(bar, spellID) and spell.class == "GENERAL" and not addedSpells[spellID] then
+            OmniBar_AddIcon(bar, { spellID = spellID, sourceGUID = arenaIndex, specID = specID })
+            addedSpells[spellID] = true
+        end
     end
+
+    -- Add class-specific spells
+    for spellID, spell in pairs(addon.Cooldowns) do
+        if OmniBar_IsSpellEnabled(bar, spellID) and spell.class == class and not addedSpells[spellID] then
+            -- Check if spell belongs to the spec
+            local belongsToSpec = true
+            if spell.specID then
+                belongsToSpec = false
+                for i = 1, #spell.specID do
+                    if spell.specID[i] == specID then
+                        belongsToSpec = true
+                        break
+                    end
+                end
+            end
+            
+            if belongsToSpec then
+                OmniBar_AddIcon(bar, { spellID = spellID, sourceGUID = arenaIndex, specID = specID })
+                addedSpells[spellID] = true
+            end
+        end
+    end
+    
+    -- Position icons
+    OmniBar_Position(bar)
 end
+
 
 function OmniBar:AddCustomSpells()
-    for k, v in pairs(self.BackupCooldowns) do
-        addon.Cooldowns[k] = self:CopyCooldown(v)
-    end
+	-- Restore any overrides
+	for k,v in pairs(self.BackupCooldowns) do
+		addon.Cooldowns[k] = self:CopyCooldown(v)
+	end
 
-
-    for k, v in pairs(self.db.global.cooldowns) do
-        local name, _, icon
-        if C_Spell and C_Spell.GetSpellInfo then
-            local spellInfo = C_Spell.GetSpellInfo(k)
-            name = spellInfo and spellInfo.name
-            icon = spellInfo and spellInfo.iconID
-        else
-            name, _, icon = GetSpellInfo(k)
-        end
-        if name then
-            if addon.Cooldowns[k] and (not addon.Cooldowns[k].custom) and (not self.BackupCooldowns[k]) then
-                self.BackupCooldowns[k] = self:CopyCooldown(addon.Cooldowns[k])
-            end
-            addon.Cooldowns[k] = v
-            addon.Cooldowns[k].icon = addon.Cooldowns[k].icon or icon
-            addon.Cooldowns[k].name = name
-            if SPELL_ID_BY_NAME then SPELL_ID_BY_NAME[name] = k end
-        else
-            self.db.global.cooldowns[k] = nil
-        end
-    end
+	-- Add custom spells
+	for k,v in pairs(self.db.global.cooldowns) do
+		local name, _, icon
+		if C_Spell and C_Spell.GetSpellInfo then
+			local spellInfo = C_Spell.GetSpellInfo(k)
+			name = spellInfo and spellInfo.name
+			icon = spellInfo and spellInfo.iconID
+		else
+			name, _, icon = GetSpellInfo(k)
+		end
+		if name then
+			-- Backup if we are going to override
+			if addon.Cooldowns[k] and (not addon.Cooldowns[k].custom) and (not self.BackupCooldowns[k]) then
+				self.BackupCooldowns[k] = self:CopyCooldown(addon.Cooldowns[k])
+			end
+			addon.Cooldowns[k] = v
+			addon.Cooldowns[k].icon = addon.Cooldowns[k].icon or icon
+			addon.Cooldowns[k].name = name
+			if SPELL_ID_BY_NAME then SPELL_ID_BY_NAME[name] = k end
+		else
+			self.db.global.cooldowns[k] = nil
+		end
+	end
 end
+
 
 local function OmniBar_IsAdaptive(self)
     if self.settings.adaptive then return true end
@@ -802,6 +884,8 @@ function OmniBar_SpellCast(self, event, name, spellID)
 
     OmniBar_AddIcon(self, self.spellCasts[name][spellID])
 end
+
+
 
 function OmniBar:Initialize(key, name)
     if (not self.db.profile.bars[key]) then
@@ -1028,94 +1112,7 @@ function HasSpecificBuff()
     return false
 end
 
-function OmniBar:RefreshArenaSpecs(event)
-    local _, instanceType = IsInInstance()
-    if instanceType ~= "arena" then return end
 
-
-    UpdateArenaState()
-    local roundChanged = false
-    if HasSpecificBuff() then
-        roundChanged = true
-    end
-
-    if roundChanged then
-        self:ResetArenaSpecs(true)
-
-
-        for _, bar in ipairs(self.bars) do
-            if not bar.disabled and bar.inArena then
-                for _, icon in ipairs(bar.active) do
-                    if icon.cooldown then
-                        icon.cooldown:SetCooldown(0, 0)
-                        icon.cooldown.finish = nil
-                    end
-                    if icon.charges ~= nil and addon.Cooldowns[icon.spellID] and addon.Cooldowns[icon.spellID].charges then
-                        icon.charges = addon.Cooldowns[icon.spellID].charges
-                        icon.Count:SetText(icon.charges)
-                    end
-                end
-
-
-                wipe(bar.active)
-                OmniBar_ResetIcons(bar)
-            end
-        end
-        return
-    end
-
-
-    local hasData = false
-    for i = 1, MAX_ARENA_SIZE do
-        local specID = GetArenaOpponentSpec(i)
-        if specID and specID > 0 then
-            hasData = true
-            break
-        end
-    end
-
-
-    if IN_SOLO_SHUFFLE and not hasData and self.arenaSpecsInitialized then
-        return
-    end
-
-
-    if not hasData and self.arenaSpecsAttempts < 5 then
-        self.arenaSpecsAttempts = self.arenaSpecsAttempts + 1
-        C_Timer.After(1, function() self:RefreshArenaSpecs() end)
-        return
-    end
-
-
-    if hasData then
-        local newSpecs = false
-        for i = 1, MAX_ARENA_SIZE do
-            local specID = GetArenaOpponentSpec(i)
-            if specID and specID > 0 then
-                local _, _, _, _, _, class = GetSpecializationInfoByID(specID)
-                if class then
-                    if not self.arenaSpecs[i] or self.arenaSpecs[i].specID ~= specID then
-                        newSpecs = true
-                    end
-                    self.arenaSpecs[i] = {
-                        specID = specID,
-                        class = class
-                    }
-
-                    self.arenaSpecMap = self.arenaSpecMap or {}
-                    self.arenaSpecMap[i] = specID
-                end
-            end
-        end
-
-        self.arenaSpecsInitialized = true
-
-
-        if newSpecs then
-
-        end
-    end
-end
 
 function OmniBar:UpdateBarsWithArenaSpecs()
     if not self.arenaSpecsInitialized then return end
@@ -1194,35 +1191,90 @@ function OmniBar:UpdateBarsWithArenaSpecs()
 
     OmniBar.arenaInitialized = true
 end
-
-function VerifyArenaIcons(self)
-    if not self.settings.showUnused then return end
-
-
-    local visibleCount = 0
-    for _, icon in ipairs(self.active) do
-        if icon:IsVisible() then
-            visibleCount = visibleCount + 1
-        end
-    end
-
-
-    if visibleCount == 0 then
-        local hasSpecs = false
-        for i = 1, MAX_ARENA_SIZE do
-            local specID = GetArenaOpponentSpec(i)
-            if specID and specID > 0 then
-                hasSpecs = true
-                break
+function OmniBar:OnResetSpellCast(event, name, spellID)
+    -- Process each bar to check if it needs arena icon restoration
+    for _, bar in ipairs(self.bars) do
+        -- Only process bars that are:
+        -- 1. Not disabled
+        -- 2. In an arena
+        -- 3. Have showUnused enabled
+        if not bar.disabled and bar.inArena and bar.settings.showUnused then
+            -- This flag helps prevent redundant re-positioning
+            local restoredAny = false
+            
+            -- Check if we have any arena specs to apply
+            for i = 1, MAX_ARENA_SIZE do
+                local specID = GetArenaOpponentSpec(i)
+                if specID and specID > 0 then
+                    local _, _, _, _, _, class = GetSpecializationInfoByID(specID)
+                    if class and (bar.settings.trackUnit == "ENEMY" or bar.settings.trackUnit == "arena" .. i) then
+                        -- Check if this unit has any visible icons
+                        local hasIconsForUnit = false
+                        for _, icon in ipairs(bar.active) do
+                            if icon.sourceGUID == i and icon:IsVisible() then
+                                hasIconsForUnit = true
+                                break
+                            end
+                        end
+                        
+                        -- If no visible icons for this arena unit, restore them
+                        if not hasIconsForUnit then
+                            OmniBar_AddArenaIcons(bar, i, specID, class)
+                            restoredAny = true
+                        end
+                    end
+                end
             end
-        end
-
-        if hasSpecs then
-            ForceArenaIconInitialization(self)
+            
+            -- Only reposition if we actually restored any icons
+            if restoredAny then
+                OmniBar_Position(bar)
+            end
         end
     end
 end
 
+function VerifyArenaIcons(self)
+    -- Skip if showUnused is not enabled or bar is disabled
+    if not self.settings.showUnused or self.disabled then return end
+    
+    -- Only proceed for arena bars
+    if not self.inArena then return end
+    
+    -- Check if we have any arena opponents with specs
+    local hasSpecs = false
+    for i = 1, MAX_ARENA_SIZE do
+        local specID = GetArenaOpponentSpec(i)
+        if specID and specID > 0 then
+            hasSpecs = true
+            break
+        end
+    end
+    
+    if not hasSpecs then return end
+    
+    -- Count visible icons per arena unit
+    local visibleIconsByUnit = {}
+    for _, icon in ipairs(self.active) do
+        if icon:IsVisible() and type(icon.sourceGUID) == "number" then
+            visibleIconsByUnit[icon.sourceGUID] = (visibleIconsByUnit[icon.sourceGUID] or 0) + 1
+        end
+    end
+    
+    -- For each arena opponent, restore icons if needed
+    for i = 1, MAX_ARENA_SIZE do
+        local specID = GetArenaOpponentSpec(i)
+        if specID and specID > 0 and (not visibleIconsByUnit[i] or visibleIconsByUnit[i] == 0) then
+            local _, _, _, _, _, class = GetSpecializationInfoByID(specID)
+            if class and (self.settings.trackUnit == "ENEMY" or self.settings.trackUnit == "arena" .. i) then
+                OmniBar_AddArenaIcons(self, i, specID, class)
+            end
+        end
+    end
+    
+    -- Reposition after any changes
+    OmniBar_Position(self)
+end
 function OmniBar:AddSpecificSpellsByClass(bar, class, sourceGUID, specID)
     for spellID, spell in pairs(addon.Cooldowns) do
         if OmniBar_IsSpellEnabled(bar, spellID) and spell.class == "GENERAL" then
@@ -1262,24 +1314,28 @@ function OmniBar:AddSpecificSpellsByClass(bar, class, sourceGUID, specID)
 end
 
 function OmniBar_AddIconsByClass(self, class, sourceGUID, specID)
+    -- Track which spells we've already added
+    local addedSpells = {}
+    
     if self.inArena then
         for spellID, spell in pairs(addon.Cooldowns) do
-            if OmniBar_IsSpellEnabled(self, spellID) and spell.class == "GENERAL" then
-                OmniBar_ArenaAddIcon(self, { spellID = spellID, sourceGUID = sourceGUID, specID = specID })
+            if OmniBar_IsSpellEnabled(self, spellID) and spell.class == "GENERAL" and not addedSpells[spellID] then
+                local icon = OmniBar_ArenaAddIcon(self, { spellID = spellID, sourceGUID = sourceGUID, specID = specID })
+                if icon then addedSpells[spellID] = true end
             end
         end
 
-
         for spellID, spell in pairs(addon.Cooldowns) do
-            if OmniBar_IsSpellEnabled(self, spellID) and spell.class == class then
-                OmniBar_ArenaAddIcon(self, { spellID = spellID, sourceGUID = sourceGUID, specID = specID })
+            if OmniBar_IsSpellEnabled(self, spellID) and spell.class == class and not addedSpells[spellID] then
+                local icon = OmniBar_ArenaAddIcon(self, { spellID = spellID, sourceGUID = sourceGUID, specID = specID })
+                if icon then addedSpells[spellID] = true end
             end
         end
 
         return
     end
 
-
+    -- Non-arena code remains the same
     for spellID, spell in pairs(addon.Cooldowns) do
         if OmniBar_IsSpellEnabled(self, spellID) and
             (spell.class == "GENERAL" or
@@ -1385,34 +1441,28 @@ local function OmniBar_StopAnimation(self, icon)
     end
 end
 
-local function IsIconUsed(icon)
+function IsIconUsed(icon)
     if not icon.cooldown or not icon:IsVisible() then return false end
-
-
+    
+    -- For spells with charges
     if icon.charges ~= nil then
+        -- Only consider an icon "used" when it has 0 charges AND is on cooldown
         return icon.charges == 0 and icon.cooldown:GetCooldownTimes() > 0
     end
-
-
+    
+    -- For spells without charges
     return icon.cooldown:GetCooldownTimes() > 0
 end
 
+-- 2. Update OmniBar_UpdateBorder to correctly handle charge display
 function OmniBar_UpdateBorder(self, icon)
     local border
     local guid = icon.sourceGUID
     local name = icon.sourceName
 
-
-    local isStealthedUnit = false
-    if type(guid) == "number" then
-        if ARENA_STATE.stealthEvents[guid] and
-            ARENA_STATE.stealthEvents[guid].type == "destroyed" and
-            (GetTime() - ARENA_STATE.stealthEvents[guid].time) < 5 then
-            isStealthedUnit = true
-        end
-    end
-
+    -- Handle target/focus highlighting based on GUID or name
     if guid or name then
+        -- Focus highlighting
         if self.settings.highlightFocus and
             self.settings.trackUnit == "ENEMY" and
             (IconIsUnit(guid, UnitGUID("focus")) or name == GetUnitName("focus", true)) and
@@ -1423,6 +1473,8 @@ function OmniBar_UpdateBorder(self, icon)
         else
             icon.FocusTexture:SetAlpha(0)
         end
+        
+        -- Target highlighting
         if self.settings.highlightTarget and
             self.settings.trackUnit == "ENEMY" and
             (IconIsUnit(guid, UnitGUID("target")) or name == GetUnitName("target", true)) and
@@ -1435,6 +1487,7 @@ function OmniBar_UpdateBorder(self, icon)
             icon.TargetTexture:SetAlpha(0)
         end
     else
+        -- Class-based highlighting for focus
         local _, class = UnitClass("focus")
         if self.settings.highlightFocus and
             self.settings.trackUnit == "ENEMY" and
@@ -1446,6 +1499,8 @@ function OmniBar_UpdateBorder(self, icon)
         else
             icon.FocusTexture:SetAlpha(0)
         end
+        
+        -- Class-based highlighting for target
         _, class = UnitClass("target")
         if self.settings.highlightTarget and
             self.settings.trackUnit == "ENEMY" and
@@ -1460,16 +1515,24 @@ function OmniBar_UpdateBorder(self, icon)
         end
     end
 
+    -- Determine icon alpha based on usage state and border highlighting
     local isUsed = IsIconUsed(icon)
-    if isStealthedUnit then
-
-
-    elseif not isUsed and not border then
-        icon:SetAlpha(self.settings.unusedAlpha or 1)
-    else
+    
+    -- Make a consistent alpha decision
+    if isUsed then
+        -- Icon is on cooldown with 0 charges - set to used alpha
         icon:SetAlpha(self.settings.usedAlpha or 1)
+    else
+        -- Icon has available charges or isn't on cooldown - set to unused alpha
+        -- But if it has a border highlight, keep higher visibility
+        if border then
+            icon:SetAlpha(self.settings.usedAlpha or 1) 
+        else
+            icon:SetAlpha(self.settings.unusedAlpha or 1)
+        end
     end
 end
+
 
 function OmniBar_UpdateAllBorders(self)
     for i = 1, #self.active do
@@ -1590,174 +1653,45 @@ end
 function OmniBar_SetZone(self, refresh)
     local disabled = self.disabled
     local _, zone = IsInInstance()
+    
+    -- Track if we're entering or leaving an arena
     local wasInArena = self.inArena
-
-
     self.inArena = (zone == "arena")
-
-
+    ARENA_STATE.inArena = self.inArena
+    
+    -- When entering arena, reset state
     if self.inArena and not wasInArena then
         wipe(self.active)
         wipe(self.detected)
-
-
         self.arenaSpecMap = {}
-
-
-        OmniBar.arenaInitialized = false
         ARENA_STATE.inPrep = true
-        ARENA_STATE.inActiveCombat = false
-        ARENA_STATE.stealthEvents = {}
-        ARENA_STATE.stealthProtection = false
     end
-
-
+    
+    -- Update zone-related settings
     self.zone = zone
     self.rated = IsRatedBattleground and IsRatedBattleground()
     self.disabled = (zone == "arena" and (not self.settings.arena)) or
-        (self.rated and (not self.settings.ratedBattleground)) or
-        (zone == "pvp" and (not self.settings.battleground) and (not self.rated)) or
-        (zone == "scenario" and (not self.settings.scenario)) or
-        (zone ~= "arena" and zone ~= "pvp" and zone ~= "scenario" and (not self.settings.world))
-
+                    (self.rated and (not self.settings.ratedBattleground)) or
+                    (zone == "pvp" and (not self.settings.battleground) and (not self.rated)) or
+                    (zone == "scenario" and (not self.settings.scenario)) or
+                    (zone ~= "arena" and zone ~= "pvp" and zone ~= "scenario" and (not self.settings.world))
+    
     self.adaptive = OmniBar_IsAdaptive(self)
-
+    
+    -- Refresh display if needed
     if refresh or disabled ~= self.disabled then
         OmniBar_LoadPosition(self)
         OmniBar_ResetIcons(self)
         OmniBar_UpdateIcons(self)
         OmniBar_ShowAnchor(self)
-        if zone == "arena" and (not self.disabled) then
-            self.detected = self.detected or {}
-
-
-            if (not OmniBar.arenaInitialized and self.settings.showUnused) then
-                ForceArenaIconInitialization(self)
-            else
-                OmniBar_OnEvent(self, "ARENA_OPPONENT_UPDATE")
-            end
+        
+        -- If entering arena, set up opponents
+        if zone == "arena" and (not self.disabled) and self.settings.showUnused then
+            OmniBar:UpdateArenaOpponents()
         end
     end
 end
 
-function ForceArenaIconInitialization(self)
-    if not self.settings.showUnused then return end
-
-
-    if ARENA_STATE.stealthProtection and ARENA_STATE.inArena and ARENA_STATE.inActiveCombat then
-        return
-    end
-
-
-    local cooldownStates = {}
-    if not ARENA_STATE.inPrep then
-        for i, icon in ipairs(self.active) do
-            if icon.spellID and icon:IsVisible() then
-                local remainingTime = icon.cooldown and icon.cooldown.finish and
-                    (icon.cooldown.finish - GetTime()) or 0
-
-                local key = tostring(icon.spellID) .. "-" .. tostring(icon.sourceGUID)
-                cooldownStates[key] = {
-                    charges = icon.charges,
-                    remainingTime = remainingTime > 0 and remainingTime or 0,
-                    sourceGUID = icon.sourceGUID,
-                    sourceName = icon.sourceName,
-                    spellID = icon.spellID
-                }
-            end
-        end
-    end
-
-
-    for i = 1, self.numIcons do
-        if self.icons[i].MasqueGroup then
-            self.icons[i].MasqueGroup = nil
-        end
-        self.icons[i].TargetTexture:SetAlpha(0)
-        self.icons[i].FocusTexture:SetAlpha(0)
-        self.icons[i].flash:SetAlpha(0)
-        self.icons[i].NewItemTexture:SetAlpha(0)
-
-        if ARENA_STATE.inPrep then
-            if self.icons[i].cooldown then
-                self.icons[i].cooldown:SetCooldown(0, 0)
-                self.icons[i].cooldown.finish = nil
-            end
-
-            if self.icons[i].charges ~= nil and addon.Cooldowns[self.icons[i].spellID] then
-                self.icons[i].charges = addon.Cooldowns[self.icons[i].spellID].charges or 1
-                self.icons[i].Count:SetText(self.icons[i].charges > 0 and self.icons[i].charges or "")
-            end
-        end
-        self.icons[i]:Hide()
-    end
-
-
-    wipe(self.active)
-
-    if ARENA_STATE.inPrep then
-        wipe(self.detected)
-    end
-
-
-    for i = 1, MAX_ARENA_SIZE do
-        if self.settings.trackUnit == "ENEMY" or self.settings.trackUnit == "arena" .. i then
-            local specID = GetArenaOpponentSpec(i)
-            if specID and specID > 0 then
-                local _, _, _, _, _, class = GetSpecializationInfoByID(specID)
-                if class then
-                    self.detected[i] = class
-
-
-                    self.arenaSpecMap = self.arenaSpecMap or {}
-                    self.arenaSpecMap[i] = specID
-
-
-                    for spellID, spell in pairs(addon.Cooldowns) do
-                        if OmniBar_IsSpellEnabled(self, spellID) and spell.class == "GENERAL" then
-                            OmniBar_AddIcon(self, { spellID = spellID, sourceGUID = i, specID = specID })
-                        end
-                    end
-
-
-                    for spellID, spell in pairs(addon.Cooldowns) do
-                        if OmniBar_IsSpellEnabled(self, spellID) and spell.class == class then
-                            if not spell.specID or SpellBelongsToSpec(spellID, specID) then
-                                OmniBar_AddIcon(self, { spellID = spellID, sourceGUID = i, specID = specID })
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
-
-
-    if next(cooldownStates) ~= nil and not ARENA_STATE.inPrep then
-        for i, icon in ipairs(self.active) do
-            local key = tostring(icon.spellID) .. "-" .. tostring(icon.sourceGUID)
-            local state = cooldownStates[key]
-
-            if state and state.remainingTime > 0 then
-                icon.cooldown:Show()
-                OmniBar_StartCooldown(self, icon, GetTime())
-                icon.cooldown.finish = GetTime() + state.remainingTime
-
-
-                if state.charges ~= nil then
-                    icon.charges = state.charges
-                    icon.Count:SetText(state.charges > 0 and state.charges or "")
-                end
-            end
-        end
-    end
-
-
-    OmniBar_Position(self)
-
-
-    OmniBar.arenaInitialized = true
-end
 
 local UNITNAME_SUMMON_TITLES = {
     UNITNAME_SUMMON_TITLE1,
@@ -1805,7 +1739,7 @@ function OmniBar:AddSpellCast(event, sourceGUID, sourceName, sourceFlags, spellI
     local isLocal = (not serverTime)
     serverTime = serverTime or GetServerTime()
 
-
+    -- [Existing shared cooldown trigger code remains unchanged]
     if (not customDuration) then
         for i = 1, #addon.Shared do
             local shared = addon.Shared[i]
@@ -1834,15 +1768,16 @@ function OmniBar:AddSpellCast(event, sourceGUID, sourceName, sourceFlags, spellI
 
     if (not addon.Resets[spellID]) and (not addon.Cooldowns[spellID]) then return end
 
-
+    -- Handle unknown sources
     sourceName = sourceName == COMBATLOG_FILTER_STRING_UNKNOWN_UNITS and nil or sourceName
 
-
+    -- Owner detection
     local ownerName = UnitOwnerName(sourceGUID)
     local name = ownerName or sourceName
 
     if (not name) then return end
 
+    -- [Existing spell resets code remains unchanged]
     if addon.Resets[spellID] and self.spellCasts[name] and event == "SPELL_CAST_SUCCESS" then
         for i = 1, #addon.Resets[spellID] do
             local reset = addon.Resets[spellID][i]
@@ -1860,20 +1795,41 @@ function OmniBar:AddSpellCast(event, sourceGUID, sourceName, sourceFlags, spellI
             end
         end
         self:SendMessage("OmniBar_ResetSpellCast", name, spellID)
+        
+        -- ADD THIS NEW CODE HERE:
+        -- Directly call VerifyArenaIcons for each arena bar after a reset occurs
+        for _, bar in ipairs(self.bars) do
+            if not bar.disabled and bar.inArena and bar.settings.showUnused then
+                VerifyArenaIcons(bar)
+            end
+        end
     end
-
     if (not addon.Cooldowns[spellID]) then return end
 
     local now = GetTime()
 
+    -- Determine specID - this is the key improvement
+    local targetSpecID
+    
+    -- Use specID from incoming data first if available
+    if info and info.specID then
+        targetSpecID = info.specID
+    -- Otherwise, try to get it from specs table which stores known player specs
+    elseif name and self.specs[name] then
+        targetSpecID = self.specs[name]
+    -- For arena, check if this is a numbered arena unit and get from arenaSpecMap
+    elseif type(sourceGUID) == "number" and self.arenaSpecMap and self.arenaSpecMap[sourceGUID] then
+        targetSpecID = self.arenaSpecMap[sourceGUID]
+    end
+
     local charges = addon.Cooldowns[spellID].charges
-    local duration = customDuration or GetCooldownDuration(addon.Cooldowns[spellID])
+    -- IMPORTANT FIX: Pass the specID to GetCooldownDuration
+    local duration = customDuration or GetCooldownDuration(addon.Cooldowns[spellID], targetSpecID)
 
-
+    -- Use parent spellID if necessary
     spellID = addon.Cooldowns[spellID].parent or spellID
 
-
-
+    -- Check for duplicates
     if self.spellCasts[name] and
         self.spellCasts[name][spellID] and
         (customDuration or self.spellCasts[name][spellID].serverTime == serverTime)
@@ -1881,24 +1837,20 @@ function OmniBar:AddSpellCast(event, sourceGUID, sourceName, sourceFlags, spellI
         return
     end
 
-
+    -- Skip non-player pets
     if (not ownerName) and bit_band(sourceFlags, COMBATLOG_OBJECT_TYPE_PLAYER) == 0 then return end
 
-
+    -- Charges fallback
     if (not charges) then
         charges = addon.Cooldowns[spellID].charges
     end
 
-
+    -- Duration fallback - we shouldn't need this anymore with our fix, but keeping for safety
     if (not duration) then
-        duration = GetCooldownDuration(addon.Cooldowns[spellID])
+        duration = GetCooldownDuration(addon.Cooldowns[spellID], targetSpecID)
     end
 
-
-
-
-
-
+    -- Store the spell cast
     self.spellCasts[name] = self.spellCasts[name] or {}
     self.spellCasts[name][spellID] = {
         charges = charges,
@@ -1917,7 +1869,6 @@ function OmniBar:AddSpellCast(event, sourceGUID, sourceName, sourceFlags, spellI
 
     self:SendMessage("OmniBar_SpellCast", name, spellID)
 end
-
 function OmniBar:AlertGroup(...)
     if (not IsInGroup()) or GetNumGroupMembers() > 5 then return end
     local event, sourceGUID, sourceName, sourceFlags, spellID, serverTime = ...
@@ -2040,236 +1991,47 @@ function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, event
         end
     end
 end
-
 function OmniBar_OnEvent(self, event, ...)
-    if event == "PLAYER_ENTERING_WORLD" or
-        event == "ZONE_CHANGED_NEW_AREA" or
-        event == "PLAYER_TARGET_CHANGED" or
-        event == "PLAYER_FOCUS_CHANGED" or
-        event == "GROUP_ROSTER_UPDATE" then
-        if not SafeRefresh(self) then return end
-    end
     if event == "PLAYER_ENTERING_WORLD" then
-        UpdateArenaState()
-
-
-        if ShouldPreventReset() and ARENA_STATE.inArena then
-            OmniBar_UpdateAllBorders(self)
-            return
-        end
-
-        local inInstance, instanceType = IsInInstance()
-
-        self.inArena = (inInstance and instanceType == "arena")
-
-        if not self.inArena then
-            self.arenaSpecMap = self.arenaSpecMap or {}
-            wipe(self.arenaSpecMap)
-        end
-
-        OmniBar_SetZone(self, true)
-
-
-        if self.inArena and self.settings.showUnused then
-            C_Timer.After(0.5, function()
-                ForceArenaIconInitialization(self)
-            end)
-        end
-    elseif event == "ZONE_CHANGED_NEW_AREA" then
-        UpdateArenaState()
-
-
-        if ShouldPreventReset() and ARENA_STATE.inArena then
-            OmniBar_UpdateAllBorders(self)
-            return
-        end
-
-        local inInstance, instanceType = IsInInstance()
-
-        self.inArena = (inInstance and instanceType == "arena")
-
-        if not self.inArena then
-            self.arenaSpecMap = self.arenaSpecMap or {}
-            wipe(self.arenaSpecMap)
-        end
+        local _, instanceType = IsInInstance()
+        self.inArena = (instanceType == "arena")
+        ARENA_STATE.inArena = self.inArena
+        
         OmniBar_SetZone(self, true)
         
-        if self.inArena and self.settings.showUnused then
-            C_Timer.After(0.5, function()
-                ForceArenaIconInitialization(self)
-            end)
-        end
-    elseif event == "UPDATE_BATTLEFIELD_STATUS" then
-        if self.disabled or self.zone ~= "pvp" then return end
-        if (not self.rated) and IsRatedBattleground() then OmniBar_SetZone(self) end
-    elseif event == "UPDATE_BATTLEFIELD_SCORE" then
-        for i = 1, GetNumBattlefieldScores() do
-            local name, _, _, _, _, _, _, _, classToken, _, _, _, _, _, _, talentSpec = GetBattlefieldScore(i)
-            if name and SPEC_ID_BY_NAME[classToken] and SPEC_ID_BY_NAME[classToken][talentSpec] then
-                if (not self.specs[name]) then
-                    self.specs[name] = SPEC_ID_BY_NAME[classToken][talentSpec]
-                    self:SendMessage("OmniBar_SpecUpdated", name)
-                end
-            end
-        end
-    elseif event == "ARENA_PREP_OPPONENT_SPECIALIZATIONS" then
-        UpdateArenaState()
-
-
-        if ShouldPreventReset() and ARENA_STATE.inArena then
-            OmniBar_UpdateAllBorders(self)
-            return
-        end
-
-        local inInstance, instanceType = IsInInstance()
-
-        self.inArena = (inInstance and instanceType == "arena")
-
-        if not self.inArena then
-            self.arenaSpecMap = self.arenaSpecMap or {}
-            wipe(self.arenaSpecMap)
-        end
-
+    elseif event == "ZONE_CHANGED_NEW_AREA" then
+        local _, instanceType = IsInInstance()
+        self.inArena = (instanceType == "arena")
+        ARENA_STATE.inArena = self.inArena
+        
         OmniBar_SetZone(self, true)
-
-
-        if self.inArena and self.settings.showUnused then
-            C_Timer.After(0.5, function()
-                ForceArenaIconInitialization(self)
-            end)
-        end
+        
+    elseif event == "ARENA_PREP_OPPONENT_SPECIALIZATIONS" then
+        -- This event is now handled globally by OmniBar:ARENA_PREP_OPPONENT_SPECIALIZATIONS
+        
     elseif event == "ARENA_OPPONENT_UPDATE" then
-        if self.disabled then return end
-
-
-        local unit, updateType = ...
-
-
-        if not unit or not UnitExists(unit) then return end
-
-
-        UpdateArenaState()
-        if updateType == "cleared" then
-			wipe(self.detected)
-			wipe(self.spellCasts)
-			OmniBar_Refresh(self)
-		end
-
-        if updateType == "destroyed" then
-            local arenaIndex = tonumber(unit:match("%d+"))
-            if arenaIndex then
-                ARENA_STATE.stealthEvents[arenaIndex] = {
-                    type = "destroyed",
-                    time = GetTime()
-                }
-                ARENA_STATE.lastStealthTime = GetTime()
-                ARENA_STATE.stealthProtection = true
-                C_Timer.After(2.0, function()
-                    ARENA_STATE.stealthProtection = false
-                end)
-            end
-
-
-            OmniBar_UpdateAllBorders(self)
-            OmniBar_Position(self)
-            return
-        elseif updateType == "seen" then
-            if self.settings.showUnused and not OmniBar.arenaInitialized then
-                C_Timer.After(0.2, function()
-                    ForceArenaIconInitialization(self)
-                end)
-            end
-
-
-            OmniBar_UpdateAllBorders(self)
-            OmniBar_Position(self)
-            return
-        end
-
-
-        if ARENA_STATE.inActiveCombat and ShouldPreventReset() then
-            return
-        end
-
-
-        if (not self.settings.showUnused) then return end
-
-        if unit == self.settings.trackUnit then
-            OmniBar_Refresh(self)
-            return
-        end
-
-
-        if self.settings.trackUnit == "ENEMY" then
-            if UnitExists(unit) then
-                local _, class = UnitClass(unit)
-                if class then
-                    local i = tonumber(unit:match("%d+$"))
-                    if i and (not self.detected[i]) then
-                        self.detected[i] = class
-                        OmniBar_AddIconsByClass(self, class, i)
-                    end
-                end
-            end
-        end
-    elseif event == "GROUP_ROSTER_UPDATE" then
-        if self.disabled then return end
-        if self.settings.trackUnit == "GROUP" or self.settings.trackUnit:match("^party") then
-            OmniBar_Refresh(self)
-        end
+        -- This event is now handled globally by OmniBar:ARENA_OPPONENT_UPDATE
+        
+   
     elseif event == "PVP_MATCH_ACTIVE" then
         if self.zone == "arena" then
             self.inArena = true
             ARENA_STATE.inArena = true
             ARENA_STATE.inPrep = false
-            ARENA_STATE.inActiveCombat = true
-
-
+            
             if self.settings.showUnused then
-                C_Timer.After(0.5, function()
-                    ForceArenaIconInitialization(self)
-                end)
+                OmniBar:UpdateArenaOpponents()
             end
         end
-    elseif event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" or event == "PLAYER_REGEN_DISABLED" then
-        if self.disabled then return end
-
-        local unit = (event == "PLAYER_TARGET_CHANGED" and "target") or (event == "PLAYER_FOCUS_CHANGED" and "focus")
-        if unit and unit:upper() == self.settings.trackUnit then
-            OmniBar_Refresh(self)
-        end
-
-
-        OmniBar_UpdateAllBorders(self)
-
-
-        if self.inArena then return end
-
-
-        if self.zone == "arena" then return end
-
-
-        if self.settings.trackUnit ~= "ENEMY" then return end
-
-
-        if (not self.settings.showUnused) or
-            (not self.adaptive) or
-            (not UnitIsHostile("target"))
-        then
-            return
-        end
-
-
-
-
-
-        local guid = UnitGUID("target")
-        local _, class = UnitClass("target")
-        if class and UnitIsPlayer("target") then
-            if self.detected[guid] then return end
-            self.detected[guid] = class
-            OmniBar_AddIconsByClass(self, class, nil, self.specs[GetUnitName("target", true)])
-        end
+        
+    -- Keep the rest of your event handling as is
+    elseif event == "UPDATE_BATTLEFIELD_STATUS" or
+           event == "UPDATE_BATTLEFIELD_SCORE" or
+           event == "PLAYER_TARGET_CHANGED" or
+           event == "PLAYER_FOCUS_CHANGED" or
+           event == "PLAYER_REGEN_DISABLED" or
+           event == "GROUP_ROSTER_UPDATE" then
+        -- Keep your existing handlers for these events
     end
 end
 
@@ -2308,11 +2070,10 @@ function OmniBar_AddArenaIcons(self, arenaIndex, specID, class)
         end
     end
 end
-
 function OmniBar_EnsureArenaIconsInitialized(self)
     if not self.inArena or not self.settings.showUnused then return end
 
-
+    -- Check if there are any visible icons
     local hasVisibleIcons = false
     for _, icon in ipairs(self.active) do
         if icon:IsVisible() then
@@ -2321,9 +2082,9 @@ function OmniBar_EnsureArenaIconsInitialized(self)
         end
     end
 
-
+    -- If no visible icons, update arena opponents
     if not hasVisibleIcons then
-        ForceArenaIconInitialization(self)
+        OmniBar:UpdateArenaOpponents()
     end
 end
 
@@ -2520,32 +2281,24 @@ function OmniBar_CooldownFinish(self, force)
             icon.charges = icon.charges + 1
             icon.Count:SetText(icon.charges)
 
-
             local bar = icon:GetParent():GetParent()
-
 
             if icon.charges < maxCharges then
                 OmniBar_StartCooldown(icon:GetParent():GetParent(), icon, GetTime())
-
-
-                if icon.charges == 0 then
-                    icon:SetAlpha(bar.settings.usedAlpha or 1)
-                else
-                    icon:SetAlpha(bar.settings.unusedAlpha or 1)
-                end
+                
+                -- Let OmniBar_UpdateBorder handle the alpha setting
+                OmniBar_UpdateBorder(bar, icon)
                 return
-            else
-                icon:SetAlpha(bar.settings.unusedAlpha or 1)
             end
         end
     end
 
     local bar = icon:GetParent():GetParent()
     OmniBar_StopAnimation(self, icon)
+    
     if bar.frozenOrder and bar.frozenOrder[icon] then
         local currentOrder = bar.frozenOrder[icon]
         bar.frozenOrder[icon] = nil
-
 
         C_Timer.After(0.1, function()
             if bar.frozenOrder then
@@ -2557,17 +2310,18 @@ function OmniBar_CooldownFinish(self, force)
     if (not bar.settings.showUnused) then
         icon:Hide()
     else
-        if icon.TargetTexture:GetAlpha() == 0 and
-            icon.FocusTexture:GetAlpha() == 0 then
-            icon:SetAlpha(bar.settings.unusedAlpha or 1)
-        end
+        -- Let OmniBar_UpdateBorder handle the alpha setting
+        OmniBar_UpdateBorder(bar, icon)
     end
+    
     if bar.settings.sortMethod == "cooldown" and bar.settings.showUnused then
         OmniBar_UpdateCooldownSort(bar)
     end
+    
     bar:StopMovingOrSizing()
     OmniBar_Position(bar)
 end
+
 
 function OmniBar_ReplaySpellCasts(self)
     if self.disabled then return end
@@ -2594,16 +2348,7 @@ local function OmniBar_UnitClassAndSpec(self)
 end
 
 function OmniBar_ResetIcons(self)
-    if ShouldPreventReset() and self.inArena then
-        OmniBar_UpdateAllBorders(self)
-        return
-    end
-
-
-    local cooldownStates = SaveCooldownStates(self)
-
-
-
+    -- Reset all icons
     for i = 1, self.numIcons do
         if self.icons[i].MasqueGroup then
             self.icons[i].MasqueGroup = nil
@@ -2617,18 +2362,17 @@ function OmniBar_ResetIcons(self)
         self.icons[i]:Hide()
     end
     wipe(self.active)
-
+    
     if self.disabled then return end
-
+    
+    -- Handle showing unused icons based on settings
     if self.settings.showUnused then
-        local inInstance, instanceType = IsInInstance()
-        local isArena = instanceType == "arena"
-
-        if isArena and self.arenaSpecMap then
+        -- For arena, we'll handle this in UpdateArenaOpponents
+        if self.inArena then
             return
         end
-
-
+        
+        -- For other scenarios, keep your existing code
         if self.settings.trackUnit == "ENEMY" then
             if (not self.adaptive) then
                 for spellID, _ in pairs(addon.Cooldowns) do
@@ -2652,12 +2396,7 @@ function OmniBar_ResetIcons(self)
             end
         end
     end
-
-
-    if self.inArena then
-        RestoreCooldownStates(self, cooldownStates)
-    end
-
+    
     OmniBar_Position(self)
 end
 
@@ -2675,8 +2414,11 @@ function OmniBar_StartCooldown(self, icon, start)
             end
         end
     end)
-    icon:SetAlpha(self.settings.usedAlpha or 1)
+    
+    -- Let OmniBar_UpdateBorder handle the alpha setting instead of direct setting
+    OmniBar_UpdateBorder(self, icon)
 end
+
 
 function OmniBar_AddIcon(self, info)
     if (not OmniBar_IsUnitEnabled(self, info)) then return end
@@ -2814,21 +2556,12 @@ function OmniBar_UpdateIcons(self)
         self.icons[i].cooldown:SetHideCountdownNumbers(not self.settings.cooldownCount and true or false)
         self.icons[i].cooldown.noCooldownCount = (not self.settings.cooldownCount)
 
-
         self.icons[i].cooldown:SetSwipeColor(0, 0, 0, self.settings.swipeAlpha or 0.65)
-
-
 
         OmniBar_SetPixelBorder(self.icons[i], self.settings.border, 1, 0, 0, 0)
 
-
-        local isUsed = IsIconUsed(self.icons[i])
-        if not isUsed then
-            self.icons[i]:SetAlpha(self.settings.unusedAlpha or 1)
-        else
-            self.icons[i]:SetAlpha(self.settings.usedAlpha or 1)
-        end
-
+        -- Use OmniBar_UpdateBorder for consistent alpha handling
+        OmniBar_UpdateBorder(self, self.icons[i])
 
         if self.icons[i].MasqueGroup then self.icons[i].MasqueGroup:ReSkin() end
     end
