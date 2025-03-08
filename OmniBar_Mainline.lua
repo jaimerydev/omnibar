@@ -8,10 +8,10 @@ addon.Resets = {
     --[[ Grimoire: Felhunter
          - Spell Lock
       ]]
-    [111897] = {119910},
-    [133] = {{spellID = 190319, amount = 3}},
-	-- [342247] = {{spellID = 212653, amount = 21}},
-	-- [342247] = {1953}
+    -- [111897] = {119910},
+    -- [133] = {{spellID = 190319, amount = 3}},
+
+	--iceblock
 	[235219] = {45438},
 }
 addon.Cooldowns = {
