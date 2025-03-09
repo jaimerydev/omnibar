@@ -312,7 +312,9 @@ function OmniBar:OnInitialize()
     }
     self:SetupOptions()
     self:SetupFlashAnimation()
-
+    
+    -- NEW CODE: Set up the global cooldown update system
+    self:SetupCooldownUpdates()
 end
 
 -- Replace existing event handler
@@ -1440,17 +1442,17 @@ local function OmniBar_StopAnimation(self, icon)
         OmniBar.flashFrame:Hide()
     end
 end
-
 function IsIconUsed(icon)
     if not icon.cooldown or not icon:IsVisible() then return false end
     
     -- For spells with charges
     if icon.charges ~= nil then
-        -- Only consider an icon "used" when it has 0 charges AND is on cooldown
-        return icon.charges == 0 and icon.cooldown:GetCooldownTimes() > 0
+        -- ONLY consider it used when it has exactly 0 charges
+        -- Any non-zero number of charges means it's "unused"
+        return icon.charges == 0
     end
     
-    -- For spells without charges
+    -- For spells without charges, check cooldown
     return icon.cooldown:GetCooldownTimes() > 0
 end
 
@@ -2399,24 +2401,73 @@ function OmniBar_ResetIcons(self)
     
     OmniBar_Position(self)
 end
+-- NEW FUNCTION: Global update management system
+function OmniBar:SetupCooldownUpdates()
+    -- Create a single update frame for all cooldown sorting
+    self.updateFrame = CreateFrame("Frame")
+    self.updateFrame:Hide()
+    self.updateElapsed = 0
+    
+    self.updateFrame:SetScript("OnUpdate", function(_, elapsed)
+        self.updateElapsed = self.updateElapsed + elapsed
+        if self.updateElapsed >= 0.5 then
+            self.updateElapsed = 0
+            
+            -- Check all bars that need cooldown sorting
+            local needsUpdates = false
+            
+            for _, bar in ipairs(self.bars) do
+                if not bar.disabled and bar.settings.sortMethod == "cooldown" and 
+                   bar.settings.showUnused and #bar.active > 0 then
+                    
+                    -- Check if any cooldowns are active
+                    local hasActiveCooldowns = false
+                    for _, icon in ipairs(bar.active) do
+                        if icon.cooldown and icon.cooldown:GetCooldownTimes() > 0 then
+                            hasActiveCooldowns = true
+                            break
+                        end
+                    end
+                    
+                    -- Only resort if there are active cooldowns
+                    if hasActiveCooldowns then
+                        OmniBar_UpdateCooldownSort(bar)
+                        needsUpdates = true
+                    end
+                end
+            end
+            
+            -- Stop updates if no longer needed
+            if not needsUpdates then
+                self.updateFrame:Hide()
+            end
+        end
+    end)
+end
 
+-- NEW FUNCTION: Start cooldown updates
+function OmniBar:StartCooldownUpdates()
+    self.updateElapsed = 0
+    self.updateFrame:Show()
+end
+
+-- MODIFIED FUNCTION: Replace individual OnUpdate scripts with global system
 function OmniBar_StartCooldown(self, icon, start)
     icon.cooldown:SetCooldown(start, icon.duration)
     icon.cooldown.finish = start + icon.duration
     icon.cooldown:SetSwipeColor(0, 0, 0, self.settings.swipeAlpha or 0.65)
-    icon.cooldown:SetScript("OnUpdate", function(cooldown, elapsed)
-        cooldown.elapsed = (cooldown.elapsed or 0) + elapsed
-        if cooldown.elapsed >= 0.5 then
-            cooldown.elapsed = 0
-
-            if self.settings.sortMethod == "cooldown" and self.settings.showUnused then
-                OmniBar_UpdateCooldownSort(self)
-            end
-        end
-    end)
     
-    -- Let OmniBar_UpdateBorder handle the alpha setting instead of direct setting
+    -- Remove individual OnUpdate script - most important performance improvement
+    icon.cooldown:SetScript("OnUpdate", nil)
+    
+    -- Let OmniBar_UpdateBorder handle the alpha setting
     OmniBar_UpdateBorder(self, icon)
+    
+    -- Start global updates if needed for cooldown sorting
+    if self.settings.sortMethod == "cooldown" and self.settings.showUnused then
+        -- Reference the global OmniBar object
+        _G["OmniBar"]:StartCooldownUpdates()
+    end
 end
 
 
