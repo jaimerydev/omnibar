@@ -1556,7 +1556,13 @@ function OmniBar_SortIcons(self)
                     return aRemaining < bRemaining
                 end
             end
-
+            if not aIsUsed and not bIsUsed then
+                local aDuration = a.duration or 0
+                local bDuration = b.duration or 0
+                if aDuration ~= bDuration then
+                    return aDuration < bDuration  -- Shorter duration first
+                end
+            end
 
             local x, y = a.ownerName or a.sourceName or "", b.ownerName or b.sourceName or ""
             if x ~= y then return x < y end
