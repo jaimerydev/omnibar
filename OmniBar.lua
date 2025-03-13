@@ -1542,13 +1542,13 @@ function OmniBar_SortIcons(self)
         elseif sortMethod == "cooldown" then
             local aIsUsed = IsIconUsed(a)
             local bIsUsed = IsIconUsed(b)
-
-
+        
+            -- Keep used icons before unused ones
             if aIsUsed ~= bIsUsed then
                 return bIsUsed
             end
-
-
+        
+            -- Sort used icons by remaining cooldown time (no change)
             if aIsUsed and bIsUsed then
                 local aRemaining = a.cooldown and a.cooldown.finish and (a.cooldown.finish - GetTime()) or 0
                 local bRemaining = b.cooldown and b.cooldown.finish and (b.cooldown.finish - GetTime()) or 0
@@ -1556,14 +1556,17 @@ function OmniBar_SortIcons(self)
                     return aRemaining < bRemaining
                 end
             end
+            
+            -- NEW: Sort unused icons by their maximum cooldown duration (REVERSED)
             if not aIsUsed and not bIsUsed then
                 local aDuration = a.duration or 0
                 local bDuration = b.duration or 0
                 if aDuration ~= bDuration then
-                    return aDuration < bDuration  -- Shorter duration first
+                    return aDuration > bDuration  -- Longer duration first (reversed)
                 end
             end
-
+        
+            -- Fall back to existing sorting by name/spellID
             local x, y = a.ownerName or a.sourceName or "", b.ownerName or b.sourceName or ""
             if x ~= y then return x < y end
             return a.spellID < b.spellID
