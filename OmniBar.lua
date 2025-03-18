@@ -401,6 +401,7 @@ function OmniBar:ARENA_OPPONENT_UPDATE(event, unit, updateType)
             if not bar.disabled then
                 wipe(bar.detected)
                 wipe(bar.active)
+                bar.arenaSpecMap = {}
                 OmniBar_ResetIcons(bar)
 
 
