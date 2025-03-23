@@ -333,26 +333,22 @@ end
 function OmniBar:ARENA_PREP_OPPONENT_SPECIALIZATIONS()
     self.arenaPrepped = true
 
-
     for _, bar in ipairs(self.bars) do
         if not bar.disabled then
             bar.detected = {}
             wipe(bar.active)
+            bar.arenaSpecMap = {}  
             OmniBar_ResetIcons(bar)
 
-
-            if bar.settings.showUnused then
-                for i = 1, MAX_ARENA_SIZE do
-                    local specID = GetArenaOpponentSpec(i)
-                    if specID and specID > 0 then
-                        local _, _, _, _, _, class = GetSpecializationInfoByID(specID)
-                        if class then
-                            bar.arenaSpecMap = bar.arenaSpecMap or {}
-                            bar.arenaSpecMap[i] = specID
-
-
+            for i = 1, MAX_ARENA_SIZE do
+                local specID = GetArenaOpponentSpec(i)
+                if specID and specID > 0 then
+                    local _, _, _, _, _, class = GetSpecializationInfoByID(specID)
+                    if class then
+                        bar.arenaSpecMap[i] = specID
+                        
+                        if bar.settings.showUnused then
                             bar.detected[i] = class
-
 
                             if bar.settings.trackUnit == "ENEMY" or bar.settings.trackUnit == "arena" .. i then
                                 for spellID, spell in pairs(addon.Cooldowns) do
@@ -360,7 +356,6 @@ function OmniBar:ARENA_PREP_OPPONENT_SPECIALIZATIONS()
                                         OmniBar_AddIcon(bar, { spellID = spellID, sourceGUID = i, specID = specID })
                                     end
                                 end
-
 
                                 for spellID, spell in pairs(addon.Cooldowns) do
                                     if OmniBar_IsSpellEnabled(bar, spellID) and spell.class == class then
@@ -384,8 +379,9 @@ function OmniBar:ARENA_PREP_OPPONENT_SPECIALIZATIONS()
                         end
                     end
                 end
+            end
 
-
+            if bar.settings.showUnused then
                 OmniBar_Position(bar)
             end
         end
