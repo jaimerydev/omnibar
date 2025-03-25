@@ -556,7 +556,7 @@ addon.Cooldowns = {
     [212653] = {duration = 21, class = "MAGE", charges = 2}, -- Shimmer
     [2139] = {default = true, duration = 20, class = "MAGE"}, -- Counterspell
     [11426] = {duration = 25, class = "MAGE"}, -- Ice Barrier
-    [45438] = {duration = 180, class = "MAGE"}, -- Ice Block
+    [45438] = {duration = 240, class = "MAGE"}, -- Ice Block
 	        [414658] = {parent = 45438}, -- Ice Cold
     [55342] = {duration = 120, class = "MAGE"}, -- Mirror Image
     [80353] = {duration = 300, class = "MAGE"}, -- Time Warp
