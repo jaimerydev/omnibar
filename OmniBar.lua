@@ -1890,7 +1890,6 @@ end
 
 function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, eventType)
     if not addon.CooldownReduction[spellID] then return end
-
     for _, bar in ipairs(self.bars) do
         for _, icon in ipairs(bar.active) do
             if not addon.CooldownReduction[spellID] or not addon.CooldownReduction[spellID][icon.spellID] then
@@ -1898,7 +1897,7 @@ function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, event
             else
                 local reductionInfo = addon.CooldownReduction[spellID][icon.spellID]
                 local reduction, requiredEvent
-
+                
                 if type(reductionInfo) == "number" then
                     reduction = reductionInfo
                 elseif type(reductionInfo) == "table" then
@@ -1926,21 +1925,48 @@ function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, event
                 end
 
 
+                -- if samePlayer then
+                --     local start, duration = icon.cooldown:GetCooldownTimes()
+                --     if start > 0 and duration > 0 then
+                --         local remaining = (start / 1000 + duration / 1000) - GetTime()
+                --         remaining = math.max(0, remaining - reduction)
+
+
+                --         icon.cooldown:SetCooldown(GetTime(), remaining)
+
+
+                --         if icon.cooldown.finish then
+                --             icon.cooldown.finish = GetTime() + remaining
+                --         end
+                --     end
+                -- end
+
                 if samePlayer then
                     local start, duration = icon.cooldown:GetCooldownTimes()
                     if start > 0 and duration > 0 then
-                        local remaining = (start / 1000 + duration / 1000) - GetTime()
-                        remaining = math.max(0, remaining - reduction)
+                        local startTime = start / 1000
+                        local totalDuration = duration / 1000
+                        local currentTime = GetTime()
+                        
+                        local endTime = startTime + totalDuration
+                        
+                        local newEndTime = endTime - reduction
+                        
+                        newEndTime = math.max(currentTime, newEndTime)
+                        
+                        local newRemainingTime = newEndTime - currentTime
+                        
 
-
-                        icon.cooldown:SetCooldown(GetTime(), remaining)
-
-
+                        local newStartTime = currentTime - (totalDuration - newRemainingTime)
+                        
+                        icon.cooldown:SetCooldown(newStartTime, totalDuration)
+                        
                         if icon.cooldown.finish then
-                            icon.cooldown.finish = GetTime() + remaining
+                            icon.cooldown.finish = newEndTime
                         end
                     end
                 end
+            
             end
         end
     end
