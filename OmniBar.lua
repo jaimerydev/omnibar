@@ -341,7 +341,7 @@ function OmniBar:OnInitialize()
     addon.CooldownReduction[HOLY_NOVA][CHASTISE] = {
         amount = 4,
         event = "UNIT_SPELLCAST_SUCCEEDED",
-        buffCheck = true -- Signal that this needs a buff check
+       buffCheck = true -- Signal that this needs a buff check
     }
     
     if not addon.CooldownReduction[CHASTISE] then
@@ -2067,6 +2067,8 @@ function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, event
                         -- Update the cooldown display
                         icon.cooldown:SetCooldown(newStartTime, totalDuration)
                         
+                        
+                        icon.cooldown.start = newStartTime
                         -- Update internal tracking
                         if icon.cooldown.finish then
                             icon.cooldown.finish = newEndTime
