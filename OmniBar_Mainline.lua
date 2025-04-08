@@ -159,7 +159,7 @@ addon.Cooldowns = {
 		[200183] = {duration = 120, class = "PRIEST", specID = {257}}, -- Apotheosis
 		[213610] = {duration = 45, class = "PRIEST", specID = {257}}, -- Holy Ward
 		[215769] = {duration = 120, class = "PRIEST", specID = {257}}, -- Spirit of Redemption
-		[88625] = {duration = 60, class = "PRIEST", specID = {257}}, -- Holy Word: Chastise
+		[88625] = {duration = 45, class = "PRIEST", specID = {257}}, -- Holy Word: Chastise
 		[328530] = {duration = 60, class = "PRIEST", specID = {257}}, -- Divine Ascension
 		[372835] = {duration = 120, class = "PRIEST", specID = {257}}, -- Lightwell
 

@@ -310,11 +310,74 @@ function OmniBar:OnInitialize()
         amount = 4,
         event = "SPELL_INTERRUPT"
     }
+
+    local HOLY_FIRE = 14914
+    local SMITE = 585
+    local HOLY_NOVA = 132157
+    local CHASTISE = 88625
+    local APOTHEOSIS = 200183
+
+    if not addon.CooldownReduction[HOLY_FIRE] then
+        addon.CooldownReduction[HOLY_FIRE] = {}
+    end
+    addon.CooldownReduction[HOLY_FIRE][CHASTISE] = {
+        amount = 2,
+        event = "UNIT_SPELLCAST_SUCCEEDED",
+        buffCheck = true -- Signal that this needs a buff check
+    }
+    
+    if not addon.CooldownReduction[SMITE] then
+        addon.CooldownReduction[SMITE] = {}
+    end
+    addon.CooldownReduction[SMITE][CHASTISE] = {
+        amount = 4,
+        event = "UNIT_SPELLCAST_SUCCEEDED",
+        buffCheck = true -- Signal that this needs a buff check
+    }
+    
+    if not addon.CooldownReduction[HOLY_NOVA] then
+        addon.CooldownReduction[HOLY_NOVA] = {}
+    end
+    addon.CooldownReduction[HOLY_NOVA][CHASTISE] = {
+        amount = 4,
+        event = "UNIT_SPELLCAST_SUCCEEDED",
+        buffCheck = true -- Signal that this needs a buff check
+    }
+    
+    if not addon.CooldownReduction[CHASTISE] then
+        addon.CooldownReduction[CHASTISE] = {}
+    end
+    addon.CooldownReduction[CHASTISE][CHASTISE] = {
+        amount = 7,
+        event = "UNIT_SPELLCAST_SUCCEEDED",
+        buffName = "Premonition of Insight" -- Check for specific buff
+    }
+    
+    if not addon.CooldownReduction[APOTHEOSIS] then
+        addon.CooldownReduction[APOTHEOSIS] = {}
+    end
+    addon.CooldownReduction[APOTHEOSIS][CHASTISE] = {
+        amount = 60,
+        event = "UNIT_SPELLCAST_SUCCEEDED"
+    }
     self:SetupOptions()
     self:SetupFlashAnimation()
 
 
     self:SetupCooldownUpdates()
+end
+
+function OmniBar:HasBuff(unit, buffName)
+    if not unit or not UnitExists(unit) then return false end
+    
+    local i = 1
+    while true do
+        local name, _, _, _, _, _, _, _, _, spellId = UnitBuff(unit, i)
+        if not name then break end
+        if name == buffName then return true end
+        i = i + 1
+    end
+    return false
 end
 
 function OmniBar:PLAYER_ENTERING_WORLD()
@@ -1839,20 +1902,27 @@ function OmniBar:AlertGroup(...)
     self:SendCommMessage("OmniBarSpell", self:Serialize(...), GetDefaultCommChannel(), nil, "ALERT")
 end
 
+
 function OmniBar:UNIT_SPELLCAST_SUCCEEDED(event, unit, _, spellID)
-    if (not addon.Cooldowns[spellID]) then return end
+    if not addon.Cooldowns[spellID] and not addon.CooldownReduction[spellID] then return end
 
     local sourceFlags = 0
-
+    
     if UnitReaction("player", unit) < 4 then
         sourceFlags = sourceFlags + COMBATLOG_OBJECT_REACTION_HOSTILE
     end
-
+    
     if UnitIsPlayer(unit) then
         sourceFlags = sourceFlags + COMBATLOG_OBJECT_TYPE_PLAYER
     end
-
-    self:AddSpellCast(event, UnitGUID(unit), GetUnitName(unit, true), sourceFlags, spellID)
+    
+    -- Add cooldown if it's a trackable spell
+    if addon.Cooldowns[spellID] then
+        self:AddSpellCast(event, UnitGUID(unit), GetUnitName(unit, true), sourceFlags, spellID)
+    end
+    
+    -- Process cooldown reduction regardless of whether it's a trackable spell
+    self:ProcessCooldownReduction(spellID, UnitGUID(unit), GetUnitName(unit, true), event)
 end
 
 function OmniBar:COMBAT_LOG_EVENT_UNFILTERED()
@@ -1901,11 +1971,43 @@ end
 
 function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, eventType)
     if not addon.CooldownReduction[spellID] then return end
+    
+    -- Find the casting unit from GUID if possible
+    local castingUnit
+    for unit in pairs({player = true, target = true, focus = true}) do
+        if UnitExists(unit) and UnitGUID(unit) == sourceGUID then
+            castingUnit = unit
+            break
+        end
+    end
+    
+    -- Try to find in party/raid
+    if not castingUnit and IsInGroup() then
+        local prefix = IsInRaid() and "raid" or "party"
+        local count = IsInRaid() and GetNumGroupMembers() or GetNumGroupMembers() - 1
+        for i = 1, count do
+            local unit = prefix..i
+            if UnitExists(unit) and UnitGUID(unit) == sourceGUID then
+                castingUnit = unit
+                break
+            end
+        end
+    end
+    
+    -- Try arena units
+    if not castingUnit then
+        for i = 1, 5 do
+            local unit = "arena"..i
+            if UnitExists(unit) and UnitGUID(unit) == sourceGUID then
+                castingUnit = unit
+                break
+            end
+        end
+    end
+    
     for _, bar in ipairs(self.bars) do
         for _, icon in ipairs(bar.active) do
-            if not addon.CooldownReduction[spellID] or not addon.CooldownReduction[spellID][icon.spellID] then
-
-            else
+            if addon.CooldownReduction[spellID] and addon.CooldownReduction[spellID][icon.spellID] then
                 local reductionInfo = addon.CooldownReduction[spellID][icon.spellID]
                 local reduction, requiredEvent
                 
@@ -1917,67 +2019,65 @@ function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, event
                 else
                     return
                 end
-
-
-                if CHANNELED_SPELLS[spellID] and eventType == "SPELL_CHANNEL_TICK" then
-                    if requiredEvent and requiredEvent ~= "SPELL_CAST_SUCCESS" and requiredEvent ~= "ANY" then
-                        return
-                    end
-                elseif requiredEvent and requiredEvent ~= eventType and requiredEvent ~= "ANY" then
+                
+                -- Check if event requirements are met
+                if requiredEvent and requiredEvent ~= eventType and requiredEvent ~= "ANY" then
                     return
                 end
-
-
+                
+                -- Check for buff requirements
+                local applyReduction = true
+                if reductionInfo.buffName and castingUnit then
+                    -- Check for specific named buff
+                    applyReduction = self:HasBuff(castingUnit, reductionInfo.buffName)
+                elseif reductionInfo.buffCheck and castingUnit then
+                    -- Apotheosis check for Holy Priest spells
+                    local hasApotheosis = self:HasBuff(castingUnit, "Apotheosis")
+                    if hasApotheosis then
+                        reduction = reduction * 3 -- Triple reduction with Apotheosis
+                    end
+                end
+                
+                -- Verify it's the same player's cooldown
                 local samePlayer = false
                 if sourceGUID and icon.sourceGUID then
                     samePlayer = (sourceGUID == icon.sourceGUID)
                 elseif sourceName and icon.sourceName then
                     samePlayer = (sourceName == icon.sourceName)
                 end
-
-
-                -- if samePlayer then
-                --     local start, duration = icon.cooldown:GetCooldownTimes()
-                --     if start > 0 and duration > 0 then
-                --         local remaining = (start / 1000 + duration / 1000) - GetTime()
-                --         remaining = math.max(0, remaining - reduction)
-
-
-                --         icon.cooldown:SetCooldown(GetTime(), remaining)
-
-
-                --         if icon.cooldown.finish then
-                --             icon.cooldown.finish = GetTime() + remaining
-                --         end
-                --     end
-                -- end
-
-                if samePlayer then
+                
+                -- Apply the cooldown reduction if conditions are met
+                if samePlayer and applyReduction then
                     local start, duration = icon.cooldown:GetCooldownTimes()
                     if start > 0 and duration > 0 then
                         local startTime = start / 1000
                         local totalDuration = duration / 1000
                         local currentTime = GetTime()
-                        
                         local endTime = startTime + totalDuration
-                        
                         local newEndTime = endTime - reduction
                         
+                        -- Ensure we don't reduce below 0
                         newEndTime = math.max(currentTime, newEndTime)
                         
                         local newRemainingTime = newEndTime - currentTime
                         
-
+                        -- Calculate the new start time based on the reduced duration
                         local newStartTime = currentTime - (totalDuration - newRemainingTime)
                         
+                        -- Update the cooldown display
                         icon.cooldown:SetCooldown(newStartTime, totalDuration)
                         
+                        -- Update internal tracking
                         if icon.cooldown.finish then
                             icon.cooldown.finish = newEndTime
                         end
+                        
+                        -- Visually indicate the reduction
+                        if icon.flashAnim and icon.flashAnim.Play then
+                            icon.flashAnim:Play()
+                        end
                     end
                 end
-            
             end
         end
     end
