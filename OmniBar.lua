@@ -366,15 +366,41 @@ function OmniBar:OnInitialize()
     local KIDNEY = 408
     local BTE = 315341
     local VANISH = 1856
-    
+    local GRAPPLE = 195457
+    local cpReduction = 6.0
 
+
+    if not addon.CooldownReduction[DISPATCH] then
+        addon.CooldownReduction[DISPATCH] = {}
+    end
+    addon.CooldownReduction[DISPATCH][GRAPPLE] = {
+        amount = cpReduction,
+        event = "UNIT_SPELLCAST_SUCCEEDED",
+        buffName = "True Bearing"
+    }
+    if not addon.CooldownReduction[KIDNEY] then
+        addon.CooldownReduction[KIDNEY] = {}
+    end
+    addon.CooldownReduction[KIDNEY][GRAPPLE] = {
+        amount = cpReduction,
+        event = "UNIT_SPELLCAST_SUCCEEDED",
+        buffName = "True Bearing"
+    }
+    if not addon.CooldownReduction[BTE] then
+        addon.CooldownReduction[BTE] = {}
+    end
+    addon.CooldownReduction[BTE][GRAPPLE] = {
+        amount = cpReduction,
+        event = "UNIT_SPELLCAST_SUCCEEDED",
+        buffName = "True Bearing"
+    }
 
 
     if not addon.CooldownReduction[DISPATCH] then
         addon.CooldownReduction[DISPATCH] = {}
     end
     addon.CooldownReduction[DISPATCH][VANISH] = {
-        amount = 4.8,
+        amount = cpReduction,
         event = "UNIT_SPELLCAST_SUCCEEDED",
         buffName = "True Bearing"
     }
@@ -382,7 +408,7 @@ function OmniBar:OnInitialize()
         addon.CooldownReduction[KIDNEY] = {}
     end
     addon.CooldownReduction[KIDNEY][VANISH] = {
-        amount = 4.8,
+        amount = cpReduction,
         event = "UNIT_SPELLCAST_SUCCEEDED",
         buffName = "True Bearing"
     }
@@ -390,10 +416,12 @@ function OmniBar:OnInitialize()
         addon.CooldownReduction[BTE] = {}
     end
     addon.CooldownReduction[BTE][VANISH] = {
-        amount = 4.8,
+        amount = cpReduction,
         event = "UNIT_SPELLCAST_SUCCEEDED",
         buffName = "True Bearing"
     }
+
+
 
     self:SetupOptions()
     self:SetupFlashAnimation()
@@ -1798,7 +1826,46 @@ function OmniBar:AddSpellCast(event, sourceGUID, sourceName, sourceFlags, spellI
     local isLocal = (not serverTime)
     serverTime = serverTime or GetServerTime()
 
-
+    -- Hardcoded check for spell 195457 and "Death's Arrival" buff
+    if spellID == 195457 then
+        -- Find the casting unit from GUID
+        local castingUnit
+        for unit in pairs({player = true, target = true, focus = true}) do
+            if UnitExists(unit) and UnitGUID(unit) == sourceGUID then
+                castingUnit = unit
+                break
+            end
+        end
+        
+        -- Try to find in party/raid if not found
+        if not castingUnit and IsInGroup() then
+            local prefix = IsInRaid() and "raid" or "party"
+            local count = IsInRaid() and GetNumGroupMembers() or GetNumGroupMembers() - 1
+            for i = 1, count do
+                local unit = prefix..i
+                if UnitExists(unit) and UnitGUID(unit) == sourceGUID then
+                    castingUnit = unit
+                    break
+                end
+            end
+        end
+        
+        -- Try arena units
+        if not castingUnit then
+            for i = 1, 5 do
+                local unit = "arena"..i
+                if UnitExists(unit) and UnitGUID(unit) == sourceGUID then
+                    castingUnit = unit
+                    break
+                end
+            end
+        end
+        
+        -- If we found the unit, check for the "Death's Arrival" buff
+        if castingUnit and self:HasBuff(castingUnit, "Death's Arrival") then
+            return -- Skip cooldown tracking if the buff is present
+        end
+    end
     if (not customDuration) then
         for i = 1, #addon.Shared do
             local shared = addon.Shared[i]
