@@ -1489,39 +1489,19 @@ function OmniBar:SetupFlashAnimation()
     self.isFlashing = false
 end
 
+
+
 local function OmniBar_StartAnimation(self, icon)
-    if (not self.settings.glow) then return end
-
-
-    if icon.flashAnim:IsPlaying() then icon.flashAnim:Stop() end
-    if icon.newitemglowAnim:IsPlaying() then icon.newitemglowAnim:Stop() end
-
-
-    icon.flash:SetAlpha(0)
-    icon.NewItemTexture:SetAlpha(0)
-
-
-    OmniBar.flashFrame:ClearAllPoints()
-    OmniBar.flashFrame:SetPoint("TOPLEFT", icon, "TOPLEFT", -3, 3)
-    OmniBar.flashFrame:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", 3, -3)
-    OmniBar.flashFrame:Show()
-
-    OmniBar.isFlashing = true
-    OmniBar.flashAnimation:Stop()
-    OmniBar.flashAnimation:Play()
+	if (not self.settings.glow) then return end
+	icon.flashAnim:Play()
+	icon.newitemglowAnim:Play()
 end
 
 local function OmniBar_StopAnimation(self, icon)
-    if icon.flashAnim:IsPlaying() then icon.flashAnim:Stop() end
-    if icon.newitemglowAnim:IsPlaying() then icon.newitemglowAnim:Stop() end
-
-
-    if OmniBar.isFlashing and OmniBar.flashAnimation:IsPlaying() then
-        OmniBar.flashAnimation:Stop()
-        OmniBar.isFlashing = false
-        OmniBar.flashFrame:Hide()
-    end
+	if icon.flashAnim:IsPlaying() then icon.flashAnim:Stop() end
+	if icon.newitemglowAnim:IsPlaying() then icon.newitemglowAnim:Stop() end
 end
+
 function IsIconUsed(icon)
     if not icon.cooldown or not icon:IsVisible() then return false end
 
