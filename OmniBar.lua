@@ -360,6 +360,41 @@ function OmniBar:OnInitialize()
         amount = 60,
         event = "UNIT_SPELLCAST_SUCCEEDED"
     }
+
+
+    local DISPATCH = 2098
+    local KIDNEY = 408
+    local BTE = 315341
+    local VANISH = 1856
+    
+
+
+
+    if not addon.CooldownReduction[DISPATCH] then
+        addon.CooldownReduction[DISPATCH] = {}
+    end
+    addon.CooldownReduction[DISPATCH][VANISH] = {
+        amount = 4.8,
+        event = "UNIT_SPELLCAST_SUCCEEDED",
+        buffName = "True Bearing"
+    }
+    if not addon.CooldownReduction[KIDNEY] then
+        addon.CooldownReduction[KIDNEY] = {}
+    end
+    addon.CooldownReduction[KIDNEY][VANISH] = {
+        amount = 4.8,
+        event = "UNIT_SPELLCAST_SUCCEEDED",
+        buffName = "True Bearing"
+    }
+    if not addon.CooldownReduction[BTE] then
+        addon.CooldownReduction[BTE] = {}
+    end
+    addon.CooldownReduction[BTE][VANISH] = {
+        amount = 4.8,
+        event = "UNIT_SPELLCAST_SUCCEEDED",
+        buffName = "True Bearing"
+    }
+
     self:SetupOptions()
     self:SetupFlashAnimation()
 
@@ -367,17 +402,13 @@ function OmniBar:OnInitialize()
     self:SetupCooldownUpdates()
 end
 
-function OmniBar:HasBuff(unit, buffName)
+function OmniBar:HasBuff(unit, buffName, filter)
     if not unit or not UnitExists(unit) then return false end
     
-    local i = 1
-    while true do
-        local name, _, _, _, _, _, _, _, _, spellId = UnitBuff(unit, i)
-        if not name then break end
-        if name == buffName then return true end
-        i = i + 1
-    end
-    return false
+    filter = filter or "HELPFUL" 
+    local _, _, _, _, _, _, _, _, _, _ = AuraUtil.FindAuraByName(buffName, unit, filter)
+    
+    return _ ~= nil  
 end
 
 function OmniBar:PLAYER_ENTERING_WORLD()
@@ -1959,19 +1990,22 @@ function OmniBar:COMBAT_LOG_EVENT_UNFILTERED()
         end
     end
 
-
+    
+    
 
     if subevent == "SPELL_INTERRUPT" or
         subevent == "SPELL_CAST_SUCCESS" or
         (subevent == "SPELL_DAMAGE" and not CHANNELED_SPELLS_CAST_ONLY[spellID]) or
         subevent == "SPELL_AURA_APPLIED" then
+    
         self:ProcessCooldownReduction(spellID, sourceGUID, sourceName, subevent)
     end
 end
 
 function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, eventType)
+
     if not addon.CooldownReduction[spellID] then return end
-    
+
     -- Find the casting unit from GUID if possible
     local castingUnit
     for unit in pairs({player = true, target = true, focus = true}) do
@@ -2010,7 +2044,6 @@ function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, event
             if addon.CooldownReduction[spellID] and addon.CooldownReduction[spellID][icon.spellID] then
                 local reductionInfo = addon.CooldownReduction[spellID][icon.spellID]
                 local reduction, requiredEvent
-                
                 if type(reductionInfo) == "number" then
                     reduction = reductionInfo
                 elseif type(reductionInfo) == "table" then
@@ -2024,12 +2057,18 @@ function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, event
                 if requiredEvent and requiredEvent ~= eventType and requiredEvent ~= "ANY" then
                     return
                 end
-                
                 -- Check for buff requirements
                 local applyReduction = true
                 if reductionInfo.buffName and castingUnit then
                     -- Check for specific named buff
-                    applyReduction = self:HasBuff(castingUnit, reductionInfo.buffName)
+                    if reductionInfo.buffName == "True Bearing" then
+                        local hasTrueBearing = self:HasBuff(castingUnit, "True Bearing")                     
+                        if hasTrueBearing then
+                            reduction = reduction + 3 -- 0.5 p cp with True Bearing
+                        end
+                    else 
+                        applyReduction = self:HasBuff(castingUnit, reductionInfo.buffName)
+                    end
                 elseif reductionInfo.buffCheck and castingUnit then
                     -- Apotheosis check for Holy Priest spells
                     local hasApotheosis = self:HasBuff(castingUnit, "Apotheosis")
@@ -2037,7 +2076,6 @@ function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, event
                         reduction = reduction * 3 -- Triple reduction with Apotheosis
                     end
                 end
-                
                 -- Verify it's the same player's cooldown
                 local samePlayer = false
                 if sourceGUID and icon.sourceGUID then

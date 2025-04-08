@@ -554,7 +554,7 @@ addon.Cooldowns = {
     [110959] = {duration = 120, class = "MAGE"}, -- Greater Invisibility
     [1953] = {duration = 11, class = "MAGE"}, -- Blink
     [212653] = {duration = 21, class = "MAGE", charges = 2}, -- Shimmer
-    [2139] = {default = true, duration = 20, class = "MAGE"}, -- Counterspell
+    [2139] = {default = true, duration = 24, class = "MAGE"}, -- Counterspell
     [11426] = {duration = 25, class = "MAGE"}, -- Ice Barrier
     [45438] = {duration = 240, class = "MAGE"}, -- Ice Block
 	        [414658] = {parent = 45438}, -- Ice Cold
