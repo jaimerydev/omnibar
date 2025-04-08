@@ -468,6 +468,7 @@ function OmniBar:AddBarToOptions(key, refresh)
 						values = {
 							["player"] = L["Sort by Player"],
 							["cooldown"] = L["Sort by Remaining Cooldown"],
+							["none"] = L["Do Not Sort"],
 						},
 						set = function(info, state)
 							local option = info[#info]

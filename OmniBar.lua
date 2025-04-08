@@ -1495,11 +1495,31 @@ end
 
 function OmniBar_SortIcons(self)
     local sortMethod = self.settings.sortMethod or "player"
-
+    
+    -- If sort method is "none", maintain current order and return
+    if sortMethod == "none" then
+        -- Only initialize order if it hasn't been done
+        if not self.initializedOrder then
+            self.initializedOrder = {}
+            for i, icon in ipairs(self.active) do
+                self.initializedOrder[icon] = i
+            end
+        end
+        
+        -- Sort only using the initialized order
+        table.sort(self.active, function(a, b)
+            local orderA = self.initializedOrder[a] or 999
+            local orderB = self.initializedOrder[b] or 999
+            return orderA < orderB
+        end)
+        return
+    end
+    
+    -- If we're here, it's not "none" sort, so clear any initialized order
+    self.initializedOrder = nil
 
     local isStableSortMethod = (sortMethod == "player")
     local isArena = IsInInstance() and select(1, GetInstanceInfo()) == "arena"
-
 
     if InCombatLockdown() and isStableSortMethod and isArena and self.frozenOrder then
         table.sort(self.active, function(a, b)
@@ -1510,8 +1530,7 @@ function OmniBar_SortIcons(self)
         return
     end
 
-
-
+    -- Rest of the original function remains unchanged
     table.sort(self.active, function(a, b)
         if sortMethod == "player" then
             if isArena then
@@ -1524,16 +1543,13 @@ function OmniBar_SortIcons(self)
                 end
             end
 
-
             local aClass, bClass = a.class or 0, b.class or 0
             if aClass ~= bClass then
                 return CLASS_ORDER[aClass] < CLASS_ORDER[bClass]
             end
 
-
             local x, y = a.ownerName or a.sourceName or "", b.ownerName or b.sourceName or ""
             if x ~= y then return x < y end
-
 
             return a.spellID < b.spellID
         elseif sortMethod == "cooldown" then
@@ -1545,7 +1561,7 @@ function OmniBar_SortIcons(self)
                 return bIsUsed
             end
         
-            -- Sort used icons by remaining cooldown time (no change)
+            -- Sort used icons by remaining cooldown time
             if aIsUsed and bIsUsed then
                 local aRemaining = a.cooldown and a.cooldown.finish and (a.cooldown.finish - GetTime()) or 0
                 local bRemaining = b.cooldown and b.cooldown.finish and (b.cooldown.finish - GetTime()) or 0
@@ -1554,7 +1570,7 @@ function OmniBar_SortIcons(self)
                 end
             end
             
-            -- NEW: Sort unused icons by their maximum cooldown duration (REVERSED)
+            -- Sort unused icons by their maximum cooldown duration (REVERSED)
             if not aIsUsed and not bIsUsed then
                 local aDuration = a.duration or 0
                 local bDuration = b.duration or 0
@@ -1578,26 +1594,21 @@ function OmniBar_SortIcons(self)
                 end
             end
 
-
             local aClass, bClass = a.class or 0, b.class or 0
             if aClass ~= bClass then
                 return CLASS_ORDER[aClass] < CLASS_ORDER[bClass]
             end
 
-
             local x, y = a.ownerName or a.sourceName or "", b.ownerName or b.sourceName or ""
             if x ~= y then return x < y end
-
 
             return a.spellID < b.spellID
         end
     end)
 
-
     if not InCombatLockdown() and isStableSortMethod and isArena then
         self.frozenOrder = self.frozenOrder or {}
         wipe(self.frozenOrder)
-
 
         for i, icon in ipairs(self.active) do
             self.frozenOrder[icon] = i
@@ -2422,6 +2433,7 @@ end
 function OmniBar_StartCooldown(self, icon, start)
     icon.cooldown:SetCooldown(start, icon.duration)
     icon.cooldown.finish = start + icon.duration
+
     icon.cooldown:SetSwipeColor(0, 0, 0, self.settings.swipeAlpha or 0.65)
 
 
@@ -2563,7 +2575,11 @@ function OmniBar_AddIcon(self, info)
 
 
     self.forceResort = true
-
+    if self.settings.sortMethod == "none" and not self.initializedOrder then
+        self.initializedOrder = self.initializedOrder or {}
+        self.initializedOrder[icon] = #self.active
+    end
+    
     return icon
 end
 
@@ -2578,6 +2594,7 @@ function OmniBar_UpdateIcons(self)
 
 
         OmniBar_UpdateBorder(self, self.icons[i])
+       -- self.icons[i].cooldown:SetReverse(false)
 
         if self.icons[i].MasqueGroup then self.icons[i].MasqueGroup:ReSkin() end
     end

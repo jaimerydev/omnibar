@@ -138,3 +138,5 @@ L["Sort by Spell ID"] = "Sort by Spell ID"
 L["Used Icon Transparency"] = "Used Icon Transparency"
 L["Set the transparency of active icons"] = "Set the transparency of active icons"
 L["Cooldown Reduction"] = "Cooldown Reduction"
+L["Do Not Sort"] = "Do Not Sort"
+
