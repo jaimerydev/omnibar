@@ -135,6 +135,7 @@ local DEFAULTS = {
     arena             = true,
     battleground      = true,
     border            = true,
+    borderStyle       = "pixel", -- New setting for border style
     center            = false,
     columns           = 8,
     cooldownCount     = true,
@@ -2794,16 +2795,35 @@ function OmniBar_UpdateIcons(self)
     for i = 1, self.numIcons do
         self.icons[i].cooldown:SetHideCountdownNumbers(not self.settings.cooldownCount and true or false)
         self.icons[i].cooldown.noCooldownCount = (not self.settings.cooldownCount)
-
         self.icons[i].cooldown:SetSwipeColor(0, 0, 0, self.settings.swipeAlpha or 0.65)
-
-        OmniBar_SetPixelBorder(self.icons[i], self.settings.border, 1, 0, 0, 0)
-
+        
+        -- Handle different border styles
+        local borderStyle = self.settings.borderStyle or "pixel"
+        
+        if borderStyle == "original" then
+            -- Original border style
+            if self.settings.border then
+                self.icons[i].icon:SetTexCoord(0, 0, 0, 1, 1, 0, 1, 1)
+            else
+                self.icons[i].icon:SetTexCoord(0.07, 0.9, 0.07, 0.9)
+            end
+            -- Hide pixel borders
+            if self.icons[i].borderTop then
+                self.icons[i].borderTop:Hide()
+                self.icons[i].borderBottom:Hide()
+                self.icons[i].borderLeft:Hide()
+                self.icons[i].borderRight:Hide()
+            end
+        else
+            -- Custom pixel border style
+            OmniBar_SetPixelBorder(self.icons[i], self.settings.border, 1, 0, 0, 0)
+        end
 
         OmniBar_UpdateBorder(self, self.icons[i])
-       -- self.icons[i].cooldown:SetReverse(false)
-
-        if self.icons[i].MasqueGroup then self.icons[i].MasqueGroup:ReSkin() end
+        
+        if self.icons[i].MasqueGroup then 
+            self.icons[i].MasqueGroup:ReSkin() 
+        end
     end
 end
 

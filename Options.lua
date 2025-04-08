@@ -394,6 +394,22 @@ function OmniBar:AddBarToOptions(key, refresh)
 						type = "toggle",
 						order = 9,
 					},
+					borderStyle = {
+						name = "Border Style",
+						desc = "Choose the style of the border around icons",
+						type = "select",
+						values = {
+							["pixel"] = "Pixel Border",
+							["original"] = "Original Border"
+						},
+						width = "normal",
+						order = 9.5,
+						set = function(info, state)
+							local option = info[#info]
+							self.db.profile.bars[key][option] = state
+							self:Refresh(true)
+						end,
+					},
 					highlightTarget = {
 						name = L["Highlight Target"],
 						desc = L["Draw a border around your target"],
