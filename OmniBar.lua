@@ -380,11 +380,12 @@ function OmniBar:OnInitialize()
 
 
     local DISPATCH = 2098
-    local KIDNEY = 408
     local BTE = 315341
+    local KS = 51690
+    local SND = 315496
     local VANISH = 1856
     local GRAPPLE = 195457
-    local cpReduction = 4.8
+    local cpReduction = 6
 
 
     if not addon.CooldownReduction[DISPATCH] then
@@ -395,14 +396,7 @@ function OmniBar:OnInitialize()
         event = "UNIT_SPELLCAST_SUCCEEDED",
         buffName = "True Bearing"
     }
-    if not addon.CooldownReduction[KIDNEY] then
-        addon.CooldownReduction[KIDNEY] = {}
-    end
-    addon.CooldownReduction[KIDNEY][GRAPPLE] = {
-        amount = cpReduction,
-        event = "UNIT_SPELLCAST_SUCCEEDED",
-        buffName = "True Bearing"
-    }
+ 
     if not addon.CooldownReduction[BTE] then
         addon.CooldownReduction[BTE] = {}
     end
@@ -411,7 +405,24 @@ function OmniBar:OnInitialize()
         event = "UNIT_SPELLCAST_SUCCEEDED",
         buffName = "True Bearing"
     }
+ 
+    if not addon.CooldownReduction[SND] then
+        addon.CooldownReduction[SND] = {}
+    end
+    addon.CooldownReduction[SND][GRAPPLE] = {
+        amount = cpReduction,
+        event = "UNIT_SPELLCAST_SUCCEEDED",
+        buffName = "True Bearing"
+    }
 
+    if not addon.CooldownReduction[KS] then
+        addon.CooldownReduction[KS] = {}
+    end
+    addon.CooldownReduction[KS][GRAPPLE] = {
+        amount = cpReduction,
+        event = "UNIT_SPELLCAST_SUCCEEDED",
+        buffName = "True Bearing"
+    }
 
     if not addon.CooldownReduction[DISPATCH] then
         addon.CooldownReduction[DISPATCH] = {}
@@ -421,14 +432,7 @@ function OmniBar:OnInitialize()
         event = "UNIT_SPELLCAST_SUCCEEDED",
         buffName = "True Bearing"
     }
-    if not addon.CooldownReduction[KIDNEY] then
-        addon.CooldownReduction[KIDNEY] = {}
-    end
-    addon.CooldownReduction[KIDNEY][VANISH] = {
-        amount = cpReduction,
-        event = "UNIT_SPELLCAST_SUCCEEDED",
-        buffName = "True Bearing"
-    }
+
     if not addon.CooldownReduction[BTE] then
         addon.CooldownReduction[BTE] = {}
     end
@@ -438,6 +442,23 @@ function OmniBar:OnInitialize()
         buffName = "True Bearing"
     }
 
+    if not addon.CooldownReduction[SND] then
+        addon.CooldownReduction[SND] = {}
+    end
+    addon.CooldownReduction[SND][VANISH] = {
+        amount = cpReduction,
+        event = "UNIT_SPELLCAST_SUCCEEDED",
+        buffName = "True Bearing"
+    }
+
+    if not addon.CooldownReduction[KS] then
+        addon.CooldownReduction[KS] = {}
+    end
+    addon.CooldownReduction[KS][VANISH] = {
+        amount = cpReduction,
+        event = "UNIT_SPELLCAST_SUCCEEDED",
+        buffName = "True Bearing"
+    }
 
 
     self:SetupOptions()
