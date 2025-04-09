@@ -135,7 +135,7 @@ local DEFAULTS = {
     arena             = true,
     battleground      = true,
     border            = true,
-    borderStyle       = "original", -- New setting for border style
+    borderStyle       = "original", 
     center            = false,
     columns           = 8,
     cooldownCount     = true,
@@ -315,13 +315,13 @@ function OmniBar:OnInitialize()
     }
 
 
-    addon.CooldownReduction[342247] = addon.CooldownReduction[342247] or {} -- shimmer alter
+    addon.CooldownReduction[342247] = addon.CooldownReduction[342247] or {} 
     addon.CooldownReduction[342247][212653] = {
         amount = 25,
         event = "UNIT_SPELLCAST_SUCCEEDED"
     }
 
-    addon.CooldownReduction[342247] = addon.CooldownReduction[342247] or {} -- shimmer alter
+    addon.CooldownReduction[342247] = addon.CooldownReduction[342247] or {} 
     addon.CooldownReduction[342247][1953] = {
         amount = 15,
         event = "UNIT_SPELLCAST_SUCCEEDED"
@@ -340,7 +340,7 @@ function OmniBar:OnInitialize()
     addon.CooldownReduction[HOLY_FIRE][CHASTISE] = {
         amount = 2,
         event = "UNIT_SPELLCAST_SUCCEEDED",
-        buffCheck = true -- Signal that this needs a buff check
+        buffCheck = true 
     }
 
     if not addon.CooldownReduction[SMITE] then
@@ -349,7 +349,7 @@ function OmniBar:OnInitialize()
     addon.CooldownReduction[SMITE][CHASTISE] = {
         amount = 4,
         event = "UNIT_SPELLCAST_SUCCEEDED",
-        buffCheck = true -- Signal that this needs a buff check
+        buffCheck = true 
     }
 
     if not addon.CooldownReduction[HOLY_NOVA] then
@@ -358,7 +358,7 @@ function OmniBar:OnInitialize()
     addon.CooldownReduction[HOLY_NOVA][CHASTISE] = {
         amount = 4,
         event = "UNIT_SPELLCAST_SUCCEEDED",
-        buffCheck = true -- Signal that this needs a buff check
+        buffCheck = true 
     }
 
     if not addon.CooldownReduction[CHASTISE] then
@@ -367,7 +367,7 @@ function OmniBar:OnInitialize()
     addon.CooldownReduction[CHASTISE][CHASTISE] = {
         amount = 7,
         event = "UNIT_SPELLCAST_SUCCEEDED",
-        buffName = "Premonition of Insight" -- Check for specific buff
+        buffName = "Premonition of Insight" 
     }
 
     if not addon.CooldownReduction[APOTHEOSIS] then
@@ -1646,9 +1646,9 @@ end
 function OmniBar_SortIcons(self)
     local sortMethod = self.settings.sortMethod or "player"
 
-    -- If sort method is "none", maintain current order and return
+    
     if sortMethod == "none" then
-        -- Only initialize order if it hasn't been done
+        
         if not self.initializedOrder then
             self.initializedOrder = {}
             for i, icon in ipairs(self.active) do
@@ -1656,7 +1656,7 @@ function OmniBar_SortIcons(self)
             end
         end
 
-        -- Sort only using the initialized order
+        
         table.sort(self.active, function(a, b)
             local orderA = self.initializedOrder[a] or 999
             local orderB = self.initializedOrder[b] or 999
@@ -1665,7 +1665,7 @@ function OmniBar_SortIcons(self)
         return
     end
 
-    -- If we're here, it's not "none" sort, so clear any initialized order
+    
     self.initializedOrder = nil
 
     local isStableSortMethod = (sortMethod == "player")
@@ -1680,7 +1680,7 @@ function OmniBar_SortIcons(self)
         return
     end
 
-    -- Rest of the original function remains unchanged
+    
     table.sort(self.active, function(a, b)
         if sortMethod == "player" then
             if isArena then
@@ -1706,12 +1706,12 @@ function OmniBar_SortIcons(self)
             local aIsUsed = IsIconUsed(a)
             local bIsUsed = IsIconUsed(b)
 
-            -- Keep used icons before unused ones
+            
             if aIsUsed ~= bIsUsed then
                 return bIsUsed
             end
 
-            -- Sort used icons by remaining cooldown time
+            
             if aIsUsed and bIsUsed then
                 local aRemaining = a.cooldown and a.cooldown.finish and (a.cooldown.finish - GetTime()) or 0
                 local bRemaining = b.cooldown and b.cooldown.finish and (b.cooldown.finish - GetTime()) or 0
@@ -1720,16 +1720,16 @@ function OmniBar_SortIcons(self)
                 end
             end
 
-            -- Sort unused icons by their maximum cooldown duration (REVERSED)
+            
             if not aIsUsed and not bIsUsed then
                 local aDuration = a.duration or 0
                 local bDuration = b.duration or 0
                 if aDuration ~= bDuration then
-                    return aDuration > bDuration -- Longer duration first (reversed)
+                    return aDuration > bDuration 
                 end
             end
 
-            -- Fall back to existing sorting by name/spellID
+            
             local x, y = a.ownerName or a.sourceName or "", b.ownerName or b.sourceName or ""
             if x ~= y then return x < y end
             return a.spellID < b.spellID
@@ -1858,9 +1858,9 @@ function OmniBar:AddSpellCast(event, sourceGUID, sourceName, sourceFlags, spellI
 
 
 
-    -- Hardcoded check for spell 195457 and "Death's Arrival" buff
+    
     if spellID == 195457 then
-        -- Find the casting unit from GUID
+        
         local castingUnit
         for unit in pairs({ player = true, target = true, focus = true }) do
             if UnitExists(unit) and UnitGUID(unit) == sourceGUID then
@@ -1869,7 +1869,7 @@ function OmniBar:AddSpellCast(event, sourceGUID, sourceName, sourceFlags, spellI
             end
         end
 
-        -- Try to find in party/raid if not found
+        
         if not castingUnit and IsInGroup() then
             local prefix = IsInRaid() and "raid" or "party"
             local count = IsInRaid() and GetNumGroupMembers() or GetNumGroupMembers() - 1
@@ -1882,7 +1882,7 @@ function OmniBar:AddSpellCast(event, sourceGUID, sourceName, sourceFlags, spellI
             end
         end
 
-        -- Try arena units
+        
         if not castingUnit then
             for i = 1, 5 do
                 local unit = "arena" .. i
@@ -1893,9 +1893,9 @@ function OmniBar:AddSpellCast(event, sourceGUID, sourceName, sourceFlags, spellI
             end
         end
 
-        -- If we found the unit, check for the "Death's Arrival" buff
+        
         if castingUnit and self:HasBuff(castingUnit, "Death's Arrival") then
-            return -- Skip cooldown tracking if the buff is present
+            return 
         end
     end
     if (not customDuration) then
@@ -2045,12 +2045,12 @@ function OmniBar:UNIT_SPELLCAST_SUCCEEDED(event, unit, _, spellID)
         sourceFlags = sourceFlags + COMBATLOG_OBJECT_TYPE_PLAYER
     end
 
-    -- Add cooldown if it's a trackable spell
+    
     if addon.Cooldowns[spellID] then
         self:AddSpellCast(event, UnitGUID(unit), GetUnitName(unit, true), sourceFlags, spellID)
     end
 
-    -- Process cooldown reduction regardless of whether it's a trackable spell
+    
     self:ProcessCooldownReduction(spellID, UnitGUID(unit), GetUnitName(unit, true), event)
 end
 
@@ -2105,7 +2105,7 @@ function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, event
     if not addon.CooldownReduction[spellID] then return end
 
  
-    -- Find the casting unit from GUID if possible
+    
     local castingUnit
     for unit in pairs({player = true, target = true, focus = true}) do
         if UnitExists(unit) and UnitGUID(unit) == sourceGUID then
@@ -2114,7 +2114,7 @@ function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, event
         end
     end
     
-    -- Try to find in party/raid
+    
     if not castingUnit and IsInGroup() then
         local prefix = IsInRaid() and "raid" or "party"
         local count = IsInRaid() and GetNumGroupMembers() or GetNumGroupMembers() - 1
@@ -2127,7 +2127,7 @@ function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, event
         end
     end
     
-    -- Try arena units
+    
     if not castingUnit then
         for i = 1, 5 do
             local unit = "arena"..i
@@ -2152,27 +2152,27 @@ function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, event
                     return
                 end
                 
-                -- Check if event requirements are met
+                
                 if requiredEvent and requiredEvent ~= eventType and requiredEvent ~= "ANY" then
                     return
                 end
-                -- Check for buff requirements
+                
                 local applyReduction = true
                 if reductionInfo.buffName and castingUnit then
-                    -- Check for specific named buff
+                    
                     if reductionInfo.buffName == "True Bearing" then
                         local hasTrueBearing = self:HasBuff(castingUnit, "True Bearing")                     
                         if hasTrueBearing then
-                            reduction = reduction + 3 -- 0.5 p cp with True Bearing
+                            reduction = reduction + 3 
                         end
                     else 
                         applyReduction = self:HasBuff(castingUnit, reductionInfo.buffName)
                     end
                 elseif reductionInfo.buffCheck and castingUnit then
-                    -- Apotheosis check for Holy Priest spells
+                    
                     local hasApotheosis = self:HasBuff(castingUnit, "Apotheosis")
                     if hasApotheosis then
-                        reduction = reduction * 3 -- Triple reduction with Apotheosis
+                        reduction = reduction * 3 
                     end
                 end
 
@@ -2189,7 +2189,7 @@ function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, event
                     end
                     
                 end
-                -- Verify it's the same player's cooldown
+                
                 local samePlayer = false
                 if sourceGUID and icon.sourceGUID then
                     samePlayer = (sourceGUID == icon.sourceGUID)
@@ -2197,7 +2197,7 @@ function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, event
                     samePlayer = (sourceName == icon.sourceName)
                 end
                 
--- Apply the cooldown reduction if conditions are met
+
 if samePlayer and applyReduction then
     local start, duration = icon.cooldown:GetCooldownTimes()
     if start > 0 and duration > 0 then
@@ -2207,29 +2207,29 @@ if samePlayer and applyReduction then
         local endTime = startTime + totalDuration
         local newEndTime = endTime - reduction
         
-        -- Check if this is a spell with charges and if reduction would complete a charge
+        
         local maxCharges = addon.Cooldowns[icon.spellID] and addon.Cooldowns[icon.spellID].charges
         if maxCharges and icon.charges ~= nil and icon.charges < maxCharges and newEndTime <= currentTime then
-            -- Calculate excess reduction (amount beyond completing this charge)
+            
             local excessReduction = currentTime - newEndTime
             
-            -- Increment charge
+            
             icon.charges = icon.charges + 1
             icon.Count:SetText(icon.charges > 0 and icon.charges or "")
             
-            -- If we still have charges to gain, apply excess reduction to next charge
+            
             if icon.charges < maxCharges then
-                -- Apply excess reduction to next charge
+                
                 local adjustedStart = currentTime - excessReduction
                 icon.cooldown:SetCooldown(adjustedStart, totalDuration)
                 
-                -- Update internal tracking
+                
                 icon.cooldown.start = adjustedStart
                 if icon.cooldown.finish then
                     icon.cooldown.finish = adjustedStart + totalDuration
                 end
             else
-                -- All charges restored - reset cooldown to 0 but keep it visible
+                
                 icon.cooldown:SetCooldown(0, 0)
                 if icon.cooldown.finish then
                     icon.cooldown.finish = 0
@@ -2238,24 +2238,24 @@ if samePlayer and applyReduction then
             return
         end
         
-        -- Ensure we don't reduce below 0
+        
         newEndTime = math.max(currentTime, newEndTime)
         
         local newRemainingTime = newEndTime - currentTime
         
-        -- Calculate the new start time based on the reduced duration
+        
         local newStartTime = currentTime - (totalDuration - newRemainingTime)
         
-        -- Update the cooldown display
+        
         icon.cooldown:SetCooldown(newStartTime, totalDuration)
         
         icon.cooldown.start = newStartTime
-        -- Update internal tracking
+        
         if icon.cooldown.finish then
             icon.cooldown.finish = newEndTime
         end
         
-        -- Visually indicate the reduction
+        
         if icon.flashAnim and icon.flashAnim.Play then
             icon.flashAnim:Play()
         end
@@ -2872,17 +2872,17 @@ function OmniBar_UpdateIcons(self)
         self.icons[i].cooldown.noCooldownCount = (not self.settings.cooldownCount)
         self.icons[i].cooldown:SetSwipeColor(0, 0, 0, self.settings.swipeAlpha or 0.65)
 
-        -- Handle different border styles
+        
         local borderStyle = self.settings.borderStyle or "pixel"
 
         if borderStyle == "original" then
-            -- Original border style
+            
             if self.settings.border then
                 self.icons[i].icon:SetTexCoord(0, 0, 0, 1, 1, 0, 1, 1)
             else
                 self.icons[i].icon:SetTexCoord(0.07, 0.9, 0.07, 0.9)
             end
-            -- Hide pixel borders
+            
             if self.icons[i].borderTop then
                 self.icons[i].borderTop:Hide()
                 self.icons[i].borderBottom:Hide()
@@ -2890,7 +2890,7 @@ function OmniBar_UpdateIcons(self)
                 self.icons[i].borderRight:Hide()
             end
         else
-            -- Custom pixel border style
+            
             OmniBar_SetPixelBorder(self.icons[i], self.settings.border, 1, 0, 0, 0)
         end
 
