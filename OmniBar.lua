@@ -156,7 +156,7 @@ local DEFAULTS = {
     swipeAlpha        = 0.65,
     tooltips          = true,
     trackUnit         = "ENEMY",
-    unusedAlpha       = 0.45,
+    unusedAlpha       = 1.0,
     usedAlpha         = 1.0,
     world             = true,
 }
@@ -317,7 +317,7 @@ function OmniBar:OnInitialize()
 
     addon.CooldownReduction[342247] = addon.CooldownReduction[342247] or {} -- shimmer alter
     addon.CooldownReduction[342247][212653] = {
-        amount = 27,
+        amount = 25,
         event = "UNIT_SPELLCAST_SUCCEEDED"
     }
 
@@ -2068,42 +2068,43 @@ function OmniBar:COMBAT_LOG_EVENT_UNFILTERED()
 end
 
 function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, eventType)
+
     if not addon.CooldownReduction[spellID] then return end
 
-
+ 
     -- Find the casting unit from GUID if possible
     local castingUnit
-    for unit in pairs({ player = true, target = true, focus = true }) do
+    for unit in pairs({player = true, target = true, focus = true}) do
         if UnitExists(unit) and UnitGUID(unit) == sourceGUID then
             castingUnit = unit
             break
         end
     end
-
+    
     -- Try to find in party/raid
     if not castingUnit and IsInGroup() then
         local prefix = IsInRaid() and "raid" or "party"
         local count = IsInRaid() and GetNumGroupMembers() or GetNumGroupMembers() - 1
         for i = 1, count do
-            local unit = prefix .. i
+            local unit = prefix..i
             if UnitExists(unit) and UnitGUID(unit) == sourceGUID then
                 castingUnit = unit
                 break
             end
         end
     end
-
+    
     -- Try arena units
     if not castingUnit then
         for i = 1, 5 do
-            local unit = "arena" .. i
+            local unit = "arena"..i
             if UnitExists(unit) and UnitGUID(unit) == sourceGUID then
                 castingUnit = unit
                 break
             end
         end
     end
-
+    
     for _, bar in ipairs(self.bars) do
         for _, icon in ipairs(bar.active) do
             if addon.CooldownReduction[spellID] and addon.CooldownReduction[spellID][icon.spellID] then
@@ -2117,7 +2118,7 @@ function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, event
                 else
                     return
                 end
-
+                
                 -- Check if event requirements are met
                 if requiredEvent and requiredEvent ~= eventType and requiredEvent ~= "ANY" then
                     return
@@ -2127,11 +2128,11 @@ function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, event
                 if reductionInfo.buffName and castingUnit then
                     -- Check for specific named buff
                     if reductionInfo.buffName == "True Bearing" then
-                        local hasTrueBearing = self:HasBuff(castingUnit, "True Bearing")
+                        local hasTrueBearing = self:HasBuff(castingUnit, "True Bearing")                     
                         if hasTrueBearing then
                             reduction = reduction + 3 -- 0.5 p cp with True Bearing
                         end
-                    else
+                    else 
                         applyReduction = self:HasBuff(castingUnit, reductionInfo.buffName)
                     end
                 elseif reductionInfo.buffCheck and castingUnit then
@@ -2145,14 +2146,15 @@ function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, event
                 if spellID == 342247 and castingUnit then
                     local bool = false
                     AuraUtil.ForEachAura(castingUnit, "HELPFUL", nil, function(_, _, _, _, _, _, _, _, _, foundID, ...)
-                        if foundID == 342246 then
-                            bool = true
-                            return
-                        end
+                            if foundID == 342246 then
+                                bool = true
+                                return
+                            end
                     end)
                     if bool == true then
                         return
                     end
+                    
                 end
                 -- Verify it's the same player's cooldown
                 local samePlayer = false
@@ -2161,99 +2163,74 @@ function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, event
                 elseif sourceName and icon.sourceName then
                     samePlayer = (sourceName == icon.sourceName)
                 end
-
-                -- Apply the cooldown reduction if conditions are met
-                if samePlayer and applyReduction then
-                    local start, duration = icon.cooldown:GetCooldownTimes()
-                    if start > 0 and duration > 0 then
-                        local startTime = start / 1000
-                        local totalDuration = duration / 1000
-                        local currentTime = GetTime()
-                        local endTime = startTime + totalDuration
-                        local newEndTime = endTime - reduction
-                        local maxCharges = addon.Cooldowns[icon.spellID] and addon.Cooldowns[icon.spellID].charges
-
-                        -- Special handling for spells with charges
-                        if maxCharges and icon.charges ~= nil then
-                            -- Calculate total reduction
-                            local reduceBy = reduction
-
-                            -- Calculate remaining cooldown on current charge
-                            local remainingCooldown = endTime - currentTime
-
-                            -- If reduction is greater than remaining cooldown, restore a charge
-                            if reduceBy >= remainingCooldown then
-                                -- Restore a charge
-                                icon.charges = icon.charges + 1
-                                reduceBy = reduceBy - remainingCooldown
-
-                                -- Restore additional charges if reduction is sufficient
-                                while reduceBy >= totalDuration and icon.charges < maxCharges do
-                                    icon.charges = icon.charges + 1
-                                    reduceBy = reduceBy - totalDuration
-                                end
-
-                                -- Update charge display
-                                icon.Count:SetText(icon.charges > 0 and icon.charges or "")
-
-                                -- If we've reached max charges, hide the cooldown
-                                if icon.charges >= maxCharges then
-                                    icon.cooldown:Hide()
-                                    -- If we have partial reduction left, apply it to next charge cooldown
-                                elseif reduceBy > 0 then
-                                    local newStartTime = currentTime - (totalDuration - reduceBy)
-                                    icon.cooldown:SetCooldown(newStartTime, totalDuration)
-                                    icon.cooldown.start = newStartTime
-                                    icon.cooldown.finish = currentTime + (totalDuration - reduceBy)
-                                    -- Start a fresh cooldown for the next charge
-                                else
-                                    icon.cooldown:SetCooldown(currentTime, totalDuration)
-                                    icon.cooldown.start = currentTime
-                                    icon.cooldown.finish = currentTime + totalDuration
-                                end
-                                -- Just reduce the current cooldown
-                            else
-                                local newEndTime = endTime - reduceBy
-                                local newStartTime = currentTime - (totalDuration - (newEndTime - currentTime))
-
-                                icon.cooldown:SetCooldown(newStartTime, totalDuration)
-                                icon.cooldown.start = newStartTime
-                                icon.cooldown.finish = newEndTime
-                            end
-
-                            -- Visual update
-                            if icon.flashAnim and icon.flashAnim.Play then
-                                icon.flashAnim:Play()
-                            end
-                            return
-                        end
-                        -- Ensure we don't reduce below 0
-                        newEndTime = math.max(currentTime, newEndTime)
-
-                        local newRemainingTime = newEndTime - currentTime
-
-                        -- Calculate the new start time based on the reduced duration
-                        local newStartTime = currentTime - (totalDuration - newRemainingTime)
-
-                        -- Update the cooldown display
-                        icon.cooldown:SetCooldown(newStartTime, totalDuration)
-
-
-                        icon.cooldown.start = newStartTime
-                        -- Update internal tracking
-                        if icon.cooldown.finish then
-                            icon.cooldown.finish = newEndTime
-                        end
-
-                        -- Visually indicate the reduction
-                        if icon.flashAnim and icon.flashAnim.Play then
-                            icon.flashAnim:Play()
-                        end
-                    end
+                
+-- Apply the cooldown reduction if conditions are met
+if samePlayer and applyReduction then
+    local start, duration = icon.cooldown:GetCooldownTimes()
+    if start > 0 and duration > 0 then
+        local startTime = start / 1000
+        local totalDuration = duration / 1000
+        local currentTime = GetTime()
+        local endTime = startTime + totalDuration
+        local newEndTime = endTime - reduction
+        
+        -- Check if this is a spell with charges and if reduction would complete a charge
+        local maxCharges = addon.Cooldowns[icon.spellID] and addon.Cooldowns[icon.spellID].charges
+        if maxCharges and icon.charges ~= nil and icon.charges < maxCharges and newEndTime <= currentTime then
+            -- Calculate excess reduction (amount beyond completing this charge)
+            local excessReduction = currentTime - newEndTime
+            
+            -- Increment charge
+            icon.charges = icon.charges + 1
+            icon.Count:SetText(icon.charges > 0 and icon.charges or "")
+            
+            -- If we still have charges to gain, apply excess reduction to next charge
+            if icon.charges < maxCharges then
+                -- Apply excess reduction to next charge
+                local adjustedStart = currentTime - excessReduction
+                icon.cooldown:SetCooldown(adjustedStart, totalDuration)
+                
+                -- Update internal tracking
+                icon.cooldown.start = adjustedStart
+                if icon.cooldown.finish then
+                    icon.cooldown.finish = adjustedStart + totalDuration
+                end
+            else
+                -- All charges restored - reset cooldown to 0 but keep it visible
+                icon.cooldown:SetCooldown(0, 0)
+                if icon.cooldown.finish then
+                    icon.cooldown.finish = 0
                 end
             end
+            return
+        end
+        
+        -- Ensure we don't reduce below 0
+        newEndTime = math.max(currentTime, newEndTime)
+        
+        local newRemainingTime = newEndTime - currentTime
+        
+        -- Calculate the new start time based on the reduced duration
+        local newStartTime = currentTime - (totalDuration - newRemainingTime)
+        
+        -- Update the cooldown display
+        icon.cooldown:SetCooldown(newStartTime, totalDuration)
+        
+        icon.cooldown.start = newStartTime
+        -- Update internal tracking
+        if icon.cooldown.finish then
+            icon.cooldown.finish = newEndTime
+        end
+        
+        -- Visually indicate the reduction
+        if icon.flashAnim and icon.flashAnim.Play then
+            icon.flashAnim:Play()
         end
     end
+end
+end
+end
+end
 end
 
 function OmniBar_OnEvent(self, event, ...)
