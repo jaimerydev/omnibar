@@ -333,6 +333,9 @@ function OmniBar:OnInitialize()
     local HOLY_NOVA = 132157
     local CHASTISE = 88625
     local APOTHEOSIS = 200183
+    local POM = 33110
+    local PWL = 440678
+    local SEREN = 2050
 
     if not addon.CooldownReduction[HOLY_FIRE] then
         addon.CooldownReduction[HOLY_FIRE] = {}
@@ -376,6 +379,36 @@ function OmniBar:OnInitialize()
     addon.CooldownReduction[APOTHEOSIS][CHASTISE] = {
         amount = 60,
         event = "UNIT_SPELLCAST_SUCCEEDED"
+    }
+
+
+    if not addon.CooldownReduction[POM] then
+        addon.CooldownReduction[POM] = {}
+    end
+    addon.CooldownReduction[POM][SEREN] = {
+        amount = 2,
+        event = "UNIT_SPELLCAST_SUCCEEDED",
+        buffCheck = true 
+    }
+
+    if not addon.CooldownReduction[PWL] then
+        addon.CooldownReduction[PWL] = {}
+    end
+    addon.CooldownReduction[PWL][SEREN] = {
+        amount = 4,
+        event = "UNIT_SPELLCAST_SUCCEEDED",
+        buffCheck = true 
+    }
+
+
+
+    if not addon.CooldownReduction[SEREN] then
+        addon.CooldownReduction[SEREN] = {}
+    end
+    addon.CooldownReduction[SEREN][SEREN] = {
+        amount = 7,
+        event = "UNIT_SPELLCAST_SUCCEEDED",
+        buffName = "Premonition of Insight" 
     }
 
 
