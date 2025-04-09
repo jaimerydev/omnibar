@@ -385,7 +385,7 @@ function OmniBar:OnInitialize()
     local SND = 315496
     local VANISH = 1856
     local GRAPPLE = 195457
-    local cpReduction = 6
+    local cpReduction = 5.6
 
 
     if not addon.CooldownReduction[DISPATCH] then
