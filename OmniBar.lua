@@ -461,6 +461,18 @@ function OmniBar:OnInitialize()
     }
 
 
+
+    local BEAM = 78675  
+    local BEAMKICk = 97547
+
+    addon.CooldownReduction[BEAMKICk] = addon.CooldownReduction[BEAMKICk] or {}
+    addon.CooldownReduction[BEAMKICk][78675] = {
+        amount = 15,
+        event = "SPELL_INTERRUPT"
+    }
+
+
+
     self:SetupOptions()
     self:SetupFlashAnimation()
 
