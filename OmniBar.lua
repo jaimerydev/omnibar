@@ -333,7 +333,7 @@ function OmniBar:OnInitialize()
     local HOLY_NOVA = 132157
     local CHASTISE = 88625
     local APOTHEOSIS = 200183
-    local POM = 33110
+    local POM = 33076
     local PWL = 440678
     local SEREN = 2050
     local FHEAL = 2061
@@ -407,7 +407,7 @@ function OmniBar:OnInitialize()
         addon.CooldownReduction[FHEAL] = {}
     end
     addon.CooldownReduction[FHEAL][SEREN] = {
-        amount = 6,
+        amount = 6.5,
         event = "UNIT_SPELLCAST_SUCCEEDED",
         buffCheck = true 
     }
@@ -417,7 +417,7 @@ function OmniBar:OnInitialize()
         addon.CooldownReduction[HEAL_NORM] = {}
     end
     addon.CooldownReduction[HEAL_NORM][SEREN] = {
-        amount = 6,
+        amount = 6.5,
         event = "UNIT_SPELLCAST_SUCCEEDED",
         buffCheck = true 
     }
@@ -2267,6 +2267,7 @@ if samePlayer and applyReduction then
     if start > 0 and duration > 0 then
         local startTime = start / 1000
         local totalDuration = duration / 1000
+        
         local currentTime = GetTime()
         local endTime = startTime + totalDuration
         local newEndTime = endTime - reduction
@@ -2285,6 +2286,8 @@ if samePlayer and applyReduction then
             if icon.charges < maxCharges then
                 -- Apply excess reduction to next charge
                 local adjustedStart = currentTime - excessReduction
+
+                
                 icon.cooldown:SetCooldown(adjustedStart, totalDuration)
                 
                 -- Update internal tracking
