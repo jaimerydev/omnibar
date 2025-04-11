@@ -411,7 +411,7 @@ self.lastCDRCleanup = GetTime()
         addon.CooldownReduction[FHEAL] = {}
     end
     addon.CooldownReduction[FHEAL][SEREN] = {
-        amount = 6.5,
+        amount = 6,
         event = "UNIT_SPELLCAST_SUCCEEDED",
         buffCheck = true 
     }
@@ -421,7 +421,7 @@ self.lastCDRCleanup = GetTime()
         addon.CooldownReduction[HEAL_NORM] = {}
     end
     addon.CooldownReduction[HEAL_NORM][SEREN] = {
-        amount = 6.5,
+        amount = 6,
         event = "UNIT_SPELLCAST_SUCCEEDED",
         buffCheck = true 
     }
