@@ -1208,7 +1208,7 @@ function OmniBar:SetupOptions()
 			desc = {
 				order = 2,
 				type = "description",
-				name = "|cffffd700 "..L["Author"].."|r Jordon\n",
+				name = "|cffffd700 "..L["Author"].."|r Jordon | Jaime Revision\n",
 				cmdHidden = true
 			},
 			bars = {
