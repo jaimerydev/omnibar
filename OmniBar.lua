@@ -198,7 +198,11 @@ self.lastCDRCleanup = GetTime()
     self.bars = {}
     self.specs = {}
     self.spellCasts = {}
+
+    --anger management variables
     self.lastRage = {}
+    self.warriorSpecMap = {} 
+
 
     self.inArena = false
     self.db.RegisterCallback(self, "OnProfileChanged", "OnEnable")
@@ -574,7 +578,9 @@ function OmniBar:PLAYER_ENTERING_WORLD()
 end
 
 function OmniBar:ARENA_PREP_OPPONENT_SPECIALIZATIONS()
+
     self.arenaPrepped = true
+    self.warriorSpecMap = {} -- Reset warrior spec map
 
     for _, bar in ipairs(self.bars) do
         if not bar.disabled then
@@ -620,6 +626,17 @@ function OmniBar:ARENA_PREP_OPPONENT_SPECIALIZATIONS()
                                 end
                             end
                         end
+
+                        if class == "WARRIOR" then
+                            local unit = "arena" .. i
+                            local unitGUID = UnitGUID(unit)
+                            if unitGUID then
+                                self.warriorSpecMap[unitGUID] = specID
+                            end
+                            -- Also store by arena index for cases where GUID isn't available yet
+                            self.warriorSpecMap["arena" .. i] = specID
+                        end
+
                     end
                 end
             end
@@ -2422,34 +2439,32 @@ end
 
 
 function OmniBar:UNIT_POWER_UPDATE(event, unit, powerType)
+    -- Early returns for non-rage and non-warrior
     if powerType ~= "RAGE" then return end
-    
     local _, class = UnitClass(unit)
     if class ~= "WARRIOR" then return end
     
     -- Initialize spec multiplier (default is 1)
     local specMultiplier = 1
-
+    local unitGUID = UnitGUID(unit)
     
-    -- Check specialization if in arena
+    -- Quick lookup in our cached warriorSpecMap
     if self.inArena then
-        -- Get arena index if this is an arena unit
-        local arenaIndex = unit:match("arena(%d)")
-        if arenaIndex then
-            arenaIndex = tonumber(arenaIndex)
-            -- Check for spec in arenaSpecMap (which is populated in arena)
-            for _, bar in ipairs(self.bars) do
-                if bar.arenaSpecMap and bar.arenaSpecMap[arenaIndex] then
-                    local unitSpecID = bar.arenaSpecMap[arenaIndex]
-                    
-                    -- Fury spec gets double CDR
-                    if unitSpecID == 72 then -- Fury Warrior
-                        specMultiplier = 2
-                    end
-                    -- Arms spec stays at normal CDR
-                    break
-                end
-            end
+        local unitSpec = nil
+        
+        -- Try to get spec by GUID first
+        if unitGUID and self.warriorSpecMap[unitGUID] then
+            unitSpec = self.warriorSpecMap[unitGUID]
+        end
+        
+        -- If not found by GUID, try by unit name
+        if not unitSpec and self.warriorSpecMap[unit] then
+            unitSpec = self.warriorSpecMap[unit]
+        end
+        
+        -- If found, adjust multiplier based on spec
+        if unitSpec == 72 then -- Fury Warrior
+            specMultiplier = 2
         end
     end
     
@@ -2458,7 +2473,6 @@ function OmniBar:UNIT_POWER_UPDATE(event, unit, powerType)
     local rageSpent = previousRage - currentRage
     
     if rageSpent > 0 and UnitAffectingCombat(unit) then
-        local unitGUID = UnitGUID(unit)
         local cdr = rageSpent / 20
         cdr = cdr * specMultiplier
 
