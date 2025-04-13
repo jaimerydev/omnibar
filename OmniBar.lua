@@ -382,14 +382,14 @@ self.lastCDRCleanup = GetTime()
         buffCheck = true -- Signal that this needs a buff check
     }
 
-    if not addon.CooldownReduction[CHASTISE] then
-        addon.CooldownReduction[CHASTISE] = {}
-    end
-    addon.CooldownReduction[CHASTISE][CHASTISE] = {
-        amount = 7,
-        event = "UNIT_SPELLCAST_SUCCEEDED",
-        buffName = "Premonition of Insight" -- Check for specific buff
-    }
+    -- if not addon.CooldownReduction[CHASTISE] then
+    --     addon.CooldownReduction[CHASTISE] = {}
+    -- end
+    -- addon.CooldownReduction[CHASTISE][CHASTISE] = {
+    --     amount = 7,
+    --     event = "UNIT_SPELLCAST_SUCCEEDED",
+    --     buffName = "Premonition of Insight" -- Check for specific buff
+    -- }
 
     if not addon.CooldownReduction[APOTHEOSIS] then
         addon.CooldownReduction[APOTHEOSIS] = {}
@@ -440,14 +440,14 @@ self.lastCDRCleanup = GetTime()
 
 
 
-    if not addon.CooldownReduction[SEREN] then
-        addon.CooldownReduction[SEREN] = {}
-    end
-    addon.CooldownReduction[SEREN][SEREN] = {
-        amount = 7,
-        event = "UNIT_SPELLCAST_SUCCEEDED",
-        buffName = "Premonition of Insight" 
-    }
+    -- if not addon.CooldownReduction[SEREN] then
+    --     addon.CooldownReduction[SEREN] = {}
+    -- end
+    -- addon.CooldownReduction[SEREN][SEREN] = {
+    --     amount = 7,
+    --     event = "UNIT_SPELLCAST_SUCCEEDED",
+    --     buffName = "Premonition of Insight" 
+    -- }
 
     if not addon.CooldownReduction[APOTHEOSIS] then
         addon.CooldownReduction[APOTHEOSIS] = {}
@@ -457,6 +457,21 @@ self.lastCDRCleanup = GetTime()
         event = "UNIT_SPELLCAST_SUCCEEDED"
     }
 
+    for spellID, spellData in pairs(addon.Cooldowns) do
+        if spellData.class == "PRIEST" and spellData.duration and not spellData.parent then
+
+            if not addon.CooldownReduction[spellID] then
+                addon.CooldownReduction[spellID] = {}
+            end
+                
+            addon.CooldownReduction[spellID][spellID] = {
+                amount = 7, 
+                event = "UNIT_SPELLCAST_SUCCEEDED",
+                buffName = "Premonition of Insight"
+            }
+            -- end
+        end
+    end
 
     local DISPATCH = 2098
     local BTE = 315341
