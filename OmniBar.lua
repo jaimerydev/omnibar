@@ -102,6 +102,9 @@ addon.CooldownReduction = {}
 OmniBar.activeChannels = {}
 
 
+    --guardian tracking
+OmniBar.guardianSpiritCasts = {}
+
 OmniBar.debugEvents = {}
 local CLASS_ORDER = {
     ["GENERAL"] = 0,
@@ -202,6 +205,7 @@ self.lastCDRCleanup = GetTime()
     --anger management variables
     self.lastRage = {}
     self.warriorSpecMap = {} 
+
 
 
     self.inArena = false
@@ -569,6 +573,13 @@ function OmniBar:PLAYER_ENTERING_WORLD()
     self.inArena = (instanceType == "arena")
     ARENA_STATE.inArena = self.inArena
 
+    -- Clean up any active Guardian Spirit timers
+    for destGUID, castInfo in pairs(self.guardianSpiritCasts) do
+        if castInfo.expiryTimer then
+            castInfo.expiryTimer:Cancel()
+        end
+    end
+    wipe(self.guardianSpiritCasts)
 
     for _, bar in ipairs(self.bars) do
         if not bar.disabled then
@@ -664,6 +675,14 @@ function OmniBar:ARENA_OPPONENT_UPDATE(event, unit, updateType)
                 ARENA_STATE.inPrep = true
             end
         end
+
+          -- Clean up any active Guardian Spirit timers
+          for destGUID, castInfo in pairs(self.guardianSpiritCasts) do
+            if castInfo.expiryTimer then
+                castInfo.expiryTimer:Cancel()
+            end
+        end
+        wipe(self.guardianSpiritCasts)
         return
     end
 
@@ -2187,12 +2206,20 @@ function OmniBar:COMBAT_LOG_EVENT_UNFILTERED()
     local procIDs = {
             [1719] = true, -- reck
             [107574] = true, -- avatar
-            [12472] = true -- veins
+            [12472] = true, -- veins
+            [216331] = true, -- av crusader
+            [31884] = true, -- av wrath
+            [10060] = true -- power infusion
         }
 
     local CHANNELED_SPELLS_CAST_ONLY = {
         [382445] = true,
     }
+    
+    -- Guardian Spirit tracking constants
+    local GUARDIAN_SPIRIT_ID = 47788
+    local GUARDIAN_SPIRIT_HEAL_ID = 48153
+    
     local foundProc = false -- fix procs being on omnibar
     if (subevent == "SPELL_AURA_APPLIED") then
         for k,v in pairs(procIDs) do
@@ -2204,7 +2231,40 @@ function OmniBar:COMBAT_LOG_EVENT_UNFILTERED()
         if foundProc then
             return
         end
+        
+        -- Track when Guardian Spirit is applied
+        if spellID == GUARDIAN_SPIRIT_ID then
+            -- Store information about this Guardian Spirit cast
+            self.guardianSpiritCasts[destGUID] = {
+                sourceGUID = sourceGUID,
+                sourceName = sourceName,
+                sourceFlags = sourceFlags,
+                timestamp = GetTime(),
+                healed = false,
+                -- When the aura expires, check if the heal proc happened
+                expiryTimer = C_Timer.NewTimer(12, function() -- Guardian Spirit lasts 12 seconds
+                    local castInfo = self.guardianSpiritCasts[destGUID]
+                    if castInfo and not castInfo.healed then
+                        -- Heal didn't happen, reduce the cooldown to 1 minute (2 minute reduction)
+                        self:ReduceCooldown(castInfo.sourceGUID, 109, GUARDIAN_SPIRIT_ID)
+                    end
+                    -- Clean up
+                    self.guardianSpiritCasts[destGUID] = nil
+                end)
+            }
+        end
     end
+    
+    -- Track Guardian Spirit's heal proc
+    if subevent == "SPELL_HEAL" and spellID == GUARDIAN_SPIRIT_HEAL_ID then
+        -- Look for all Guardian Spirit casts on the destination unit
+        if self.guardianSpiritCasts[destGUID] then
+            -- Mark this Guardian Spirit as having procced its heal
+            self.guardianSpiritCasts[destGUID].healed = true
+            -- We could cancel the timer, but it's cleaner to just let it run and check the healed flag
+        end
+    end
+    
 
     if (subevent == "SPELL_CAST_SUCCESS" or subevent == "SPELL_AURA_APPLIED" or subevent == "SPELL_INTERRUPT") then
         if spellID == 0 and SPELL_ID_BY_NAME then spellID = SPELL_ID_BY_NAME[spellName] end
@@ -2230,9 +2290,6 @@ function OmniBar:COMBAT_LOG_EVENT_UNFILTERED()
             end
         end
     end
-
-
-
 
     if subevent == "SPELL_INTERRUPT" or
         subevent == "SPELL_CAST_SUCCESS" or

@@ -184,8 +184,9 @@ addon.Cooldowns = {
 		[471195] = {parent = 633}, -- Lay on Hands (30% Armor increase)
     [642] = {duration = 210, class = "PALADIN"}, -- Divine Shield
     [853] = {duration = 30, class = "PALADIN"}, -- Hammer of Justice
-    [1022] = {duration = 240, class = "PALADIN"}, -- Blessing of Protection
-    [204018] = {duration = {default = 240, [66] = 210}, class = "PALADIN"}, -- Blessing of Spellwarding
+    [1022] = {duration = 300, class = "PALADIN"}, -- Blessing of Protection
+	[204018] = {parent = 1022},
+    --[204018] = {duration = {default = 240, [66] = 210}, class = "PALADIN"}, -- Blessing of Spellwarding
     [1044] = {duration = 25, class = "PALADIN"}, -- Blessing of Freedom
     [6940] = {duration = 60, class = "PALADIN"}, -- Blessing of Sacrifice
 		[199448] = {parent = 6940, duration = 60}, -- Ultimate Sacrifice
