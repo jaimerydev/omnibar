@@ -2422,11 +2422,36 @@ end
 
 
 function OmniBar:UNIT_POWER_UPDATE(event, unit, powerType)
-    --Anger Management logic
     if powerType ~= "RAGE" then return end
     
     local _, class = UnitClass(unit)
     if class ~= "WARRIOR" then return end
+    
+    -- Initialize spec multiplier (default is 1)
+    local specMultiplier = 1
+
+    
+    -- Check specialization if in arena
+    if self.inArena then
+        -- Get arena index if this is an arena unit
+        local arenaIndex = unit:match("arena(%d)")
+        if arenaIndex then
+            arenaIndex = tonumber(arenaIndex)
+            -- Check for spec in arenaSpecMap (which is populated in arena)
+            for _, bar in ipairs(self.bars) do
+                if bar.arenaSpecMap and bar.arenaSpecMap[arenaIndex] then
+                    local unitSpecID = bar.arenaSpecMap[arenaIndex]
+                    
+                    -- Fury spec gets double CDR
+                    if unitSpecID == 72 then -- Fury Warrior
+                        specMultiplier = 2
+                    end
+                    -- Arms spec stays at normal CDR
+                    break
+                end
+            end
+        end
+    end
     
     local currentRage = UnitPower(unit, Enum.PowerType.Rage)
     local previousRage = self.lastRage[unit] or currentRage
@@ -2435,7 +2460,7 @@ function OmniBar:UNIT_POWER_UPDATE(event, unit, powerType)
     if rageSpent > 0 and UnitAffectingCombat(unit) then
         local unitGUID = UnitGUID(unit)
         local cdr = rageSpent / 20
-        cdr = cdr * 2
+        cdr = cdr * specMultiplier
 
         self:ReduceCooldown(unitGUID, cdr, 1719) -- Reck
         self:ReduceCooldown(unitGUID, cdr, 167105) -- Colossus
