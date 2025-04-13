@@ -333,7 +333,7 @@ addon.Cooldowns = {
 		[118038] = {duration = 85, class = "WARRIOR", specID = {71}}, -- Die by the Sword
 		[167105] = {duration = 45, class = "WARRIOR", specID = {71}}, -- Colossus Smash
 			[262161] = {parent = 167105}, -- Warbreaker
-		[227847] = {duration = 60, class = "WARRIOR", specID = {71,72}}, -- Bladestorm
+		[446035] = {duration = 90, class = "WARRIOR", specID = {71,72}}, -- Bladestorm
 		[236273] = {duration = 60, class = "WARRIOR", specID = {71}}, -- Duel
 		[260643] = {duration = 21, class = "WARRIOR", specID = {71}}, -- Skullsplitter
 
