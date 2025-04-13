@@ -628,91 +628,7 @@ function OmniBar:ARENA_PREP_OPPONENT_SPECIALIZATIONS()
     end
 end
 
--- function OmniBar:ARENA_OPPONENT_UPDATE(event, unit, updateType)
---     if not unit or not UnitExists(unit) then return end
 
-
---     if updateType == "cleared" then
---         for _, bar in ipairs(self.bars) do
---             if not bar.disabled then
---                 wipe(bar.detected)
---                 wipe(bar.active)
---                 bar.arenaSpecMap = {}
---                 OmniBar_ResetIcons(bar)
-
-
---                 self.arenaPrepped = false
---                 ARENA_STATE.inPrep = true
---             end
---         end
---         return
---     end
-
-
-
---     for _, bar in ipairs(self.bars) do
---         if not bar.disabled then
---             OmniBar_UpdateAllBorders(bar)
-
-
---             if updateType == "seen" and bar.settings.showUnused then
---                 local arenaIndex = tonumber(unit:match("%d+"))
---                 if arenaIndex and not bar.detected[arenaIndex] then
---                     local _, class = UnitClass(unit)
---                     if class then
---                         bar.detected[arenaIndex] = class
-
-
---                         if bar.settings.trackUnit == "ENEMY" or bar.settings.trackUnit == "arena" .. arenaIndex then
---                             local specID = bar.arenaSpecMap and bar.arenaSpecMap[arenaIndex]
---                             if specID and specID > 0 then
---                                 local hasIcons = false
---                                 for _, icon in ipairs(bar.active) do
---                                     if icon.sourceGUID == arenaIndex then
---                                         hasIcons = true
---                                         break
---                                     end
---                                 end
-
---                                 if not hasIcons then
---                                     for spellID, spell in pairs(addon.Cooldowns) do
---                                         if OmniBar_IsSpellEnabled(bar, spellID) and spell.class == "GENERAL" then
---                                             OmniBar_AddIcon(bar,
---                                                 { spellID = spellID, sourceGUID = arenaIndex, specID = specID })
---                                         end
---                                     end
-
-
---                                     for spellID, spell in pairs(addon.Cooldowns) do
---                                         if OmniBar_IsSpellEnabled(bar, spellID) and spell.class == class then
---                                             local belongsToSpec = true
---                                             if spell.specID then
---                                                 belongsToSpec = false
---                                                 for j = 1, #spell.specID do
---                                                     if spell.specID[j] == specID then
---                                                         belongsToSpec = true
---                                                         break
---                                                     end
---                                                 end
---                                             end
-
---                                             if belongsToSpec then
---                                                 OmniBar_AddIcon(bar,
---                                                     { spellID = spellID, sourceGUID = arenaIndex, specID = specID })
---                                             end
---                                         end
---                                     end
-
---                                     OmniBar_Position(bar)
---                                 end
---                             end
---                         end
---                     end
---                 end
---             end
---         end
---     end
--- end
 function OmniBar:ARENA_OPPONENT_UPDATE(event, unit, updateType)
     if not unit or not UnitExists(unit) then return end
 
@@ -731,110 +647,110 @@ function OmniBar:ARENA_OPPONENT_UPDATE(event, unit, updateType)
         return
     end
 
-    for _, bar in ipairs(self.bars) do
-        if not bar.disabled then
-            OmniBar_UpdateAllBorders(bar)
+    -- for _, bar in ipairs(self.bars) do
+    --     if not bar.disabled then
+    --         OmniBar_UpdateAllBorders(bar)
 
-            if updateType == "seen" and bar.settings.showUnused then
-                local arenaIndex = tonumber(unit:match("%d+"))
-                if arenaIndex then
-                    local _, class = UnitClass(unit)
-                    if class then
-                        -- Always update the detected class
-                        bar.detected[arenaIndex] = class
+    --         if updateType == "seen" and bar.settings.showUnused then
+    --             local arenaIndex = tonumber(unit:match("%d+"))
+    --             if arenaIndex then
+    --                 local _, class = UnitClass(unit)
+    --                 if class then
+    --                     -- Always update the detected class
+    --                     bar.detected[arenaIndex] = class
                         
-                        if bar.settings.trackUnit == "ENEMY" or bar.settings.trackUnit == "arena" .. arenaIndex then
-                            local specID = bar.arenaSpecMap and bar.arenaSpecMap[arenaIndex]
-                            if specID and specID > 0 then
-                                -- Improved hasIcons check - count all icons for this arena unit
-                                local unitGUID = UnitGUID(unit)
-                                local iconCount = 0
-                                local expectedCount = 0
+    --                     if bar.settings.trackUnit == "ENEMY" or bar.settings.trackUnit == "arena" .. arenaIndex then
+    --                         local specID = bar.arenaSpecMap and bar.arenaSpecMap[arenaIndex]
+    --                         if specID and specID > 0 then
+    --                             -- Improved hasIcons check - count all icons for this arena unit
+    --                             local unitGUID = UnitGUID(unit)
+    --                             local iconCount = 0
+    --                             local expectedCount = 0
                                 
-                                -- First pass: count existing icons for this unit
-                                for _, icon in ipairs(bar.active) do
-                                    if icon:IsVisible() and (
-                                       (type(icon.sourceGUID) == "number" and icon.sourceGUID == arenaIndex) or
-                                       (unitGUID and icon.sourceGUID == unitGUID)
-                                    ) then
-                                        iconCount = iconCount + 1
-                                    end
-                                end
+    --                             -- First pass: count existing icons for this unit
+    --                             for _, icon in ipairs(bar.active) do
+    --                                 if icon:IsVisible() and (
+    --                                    (type(icon.sourceGUID) == "number" and icon.sourceGUID == arenaIndex) or
+    --                                    (unitGUID and icon.sourceGUID == unitGUID)
+    --                                 ) then
+    --                                     iconCount = iconCount + 1
+    --                                 end
+    --                             end
                                 
-                                -- Only add icons if we don't have any for this unit
-                                if iconCount == 0 then
-                                    -- Count general spells
-                                    for spellID, spell in pairs(addon.Cooldowns) do
-                                        if OmniBar_IsSpellEnabled(bar, spellID) and spell.class == "GENERAL" then
-                                            expectedCount = expectedCount + 1
-                                        end
-                                    end
+    --                             -- Only add icons if we don't have any for this unit
+    --                             if iconCount == 0 then
+    --                                 -- Count general spells
+    --                                 for spellID, spell in pairs(addon.Cooldowns) do
+    --                                     if OmniBar_IsSpellEnabled(bar, spellID) and spell.class == "GENERAL" then
+    --                                         expectedCount = expectedCount + 1
+    --                                     end
+    --                                 end
                                     
-                                    -- Count class-specific spells
-                                    for spellID, spell in pairs(addon.Cooldowns) do
-                                        if OmniBar_IsSpellEnabled(bar, spellID) and spell.class == class then
-                                            local belongsToSpec = true
-                                            if spell.specID then
-                                                belongsToSpec = false
-                                                for j = 1, #spell.specID do
-                                                    if spell.specID[j] == specID then
-                                                        belongsToSpec = true
-                                                        break
-                                                    end
-                                                end
-                                            end
+    --                                 -- Count class-specific spells
+    --                                 for spellID, spell in pairs(addon.Cooldowns) do
+    --                                     if OmniBar_IsSpellEnabled(bar, spellID) and spell.class == class then
+    --                                         local belongsToSpec = true
+    --                                         if spell.specID then
+    --                                             belongsToSpec = false
+    --                                             for j = 1, #spell.specID do
+    --                                                 if spell.specID[j] == specID then
+    --                                                     belongsToSpec = true
+    --                                                     break
+    --                                                 end
+    --                                             end
+    --                                         end
                                             
-                                            if belongsToSpec then
-                                                expectedCount = expectedCount + 1
-                                            end
-                                        end
-                                    end
+    --                                         if belongsToSpec then
+    --                                             expectedCount = expectedCount + 1
+    --                                         end
+    --                                     end
+    --                                 end
                                     
-                                    -- If we're missing icons for this unit, add them
-                                    if iconCount < expectedCount then
-                                        for spellID, spell in pairs(addon.Cooldowns) do
-                                            if OmniBar_IsSpellEnabled(bar, spellID) and spell.class == "GENERAL" then
-                                                OmniBar_AddIcon(bar, { 
-                                                    spellID = spellID, 
-                                                    sourceGUID = arenaIndex, 
-                                                    specID = specID 
-                                                })
-                                            end
-                                        end
+    --                                 -- If we're missing icons for this unit, add them
+    --                                 if iconCount < expectedCount then
+    --                                     for spellID, spell in pairs(addon.Cooldowns) do
+    --                                         if OmniBar_IsSpellEnabled(bar, spellID) and spell.class == "GENERAL" then
+    --                                             OmniBar_AddIcon(bar, { 
+    --                                                 spellID = spellID, 
+    --                                                 sourceGUID = arenaIndex, 
+    --                                                 specID = specID 
+    --                                             })
+    --                                         end
+    --                                     end
 
-                                        for spellID, spell in pairs(addon.Cooldowns) do
-                                            if OmniBar_IsSpellEnabled(bar, spellID) and spell.class == class then
-                                                local belongsToSpec = true
-                                                if spell.specID then
-                                                    belongsToSpec = false
-                                                    for j = 1, #spell.specID do
-                                                        if spell.specID[j] == specID then
-                                                            belongsToSpec = true
-                                                            break
-                                                        end
-                                                    end
-                                                end
+    --                                     for spellID, spell in pairs(addon.Cooldowns) do
+    --                                         if OmniBar_IsSpellEnabled(bar, spellID) and spell.class == class then
+    --                                             local belongsToSpec = true
+    --                                             if spell.specID then
+    --                                                 belongsToSpec = false
+    --                                                 for j = 1, #spell.specID do
+    --                                                     if spell.specID[j] == specID then
+    --                                                         belongsToSpec = true
+    --                                                         break
+    --                                                     end
+    --                                                 end
+    --                                             end
 
-                                                if belongsToSpec then
-                                                    OmniBar_AddIcon(bar, { 
-                                                        spellID = spellID, 
-                                                        sourceGUID = arenaIndex, 
-                                                        specID = specID 
-                                                    })
-                                                end
-                                            end
-                                        end
+    --                                             if belongsToSpec then
+    --                                                 OmniBar_AddIcon(bar, { 
+    --                                                     spellID = spellID, 
+    --                                                     sourceGUID = arenaIndex, 
+    --                                                     specID = specID 
+    --                                                 })
+    --                                             end
+    --                                         end
+    --                                     end
                                         
-                                        OmniBar_Position(bar)
-                                    end
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
+    --                                     OmniBar_Position(bar)
+    --                                 end
+    --                             end
+    --                         end
+    --                     end
+    --                 end
+    --             end
+    --         end
+    --     end
+    --end
 end
 local function GetDefaultCommChannel()
     if IsInRaid() then
