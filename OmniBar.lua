@@ -2163,12 +2163,27 @@ end
 function OmniBar:COMBAT_LOG_EVENT_UNFILTERED()
     local timestamp, subevent, _, sourceGUID, sourceName, sourceFlags, _, destGUID, destName, destFlags, destRaidFlags, spellID, spellName =
         CombatLogGetCurrentEventInfo()
-
+ 
+    local procIDs = {
+            [1719] = true, -- reck
+            [12472] = true -- veins
+        }
 
     local CHANNELED_SPELLS_CAST_ONLY = {
         [382445] = true,
     }
-
+    local foundProc = false -- fix procs being on omnibar
+    if (subevent == "SPELL_AURA_APPLIED") then
+        for k,v in pairs(procIDs) do
+            if spellID == k then                
+                foundProc = true
+                return
+            end
+        end
+        if foundProc then
+            return
+        end
+    end
 
     if (subevent == "SPELL_CAST_SUCCESS" or subevent == "SPELL_AURA_APPLIED" or subevent == "SPELL_INTERRUPT") then
         if spellID == 0 and SPELL_ID_BY_NAME then spellID = SPELL_ID_BY_NAME[spellName] end
