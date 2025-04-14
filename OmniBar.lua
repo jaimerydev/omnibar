@@ -2506,30 +2506,220 @@ end
 -- end
 -- end
 
+-- function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, eventType)
+--     if not addon.CooldownReduction[spellID] then return end
+    
+--     -- Generate a unique key for this spell cast
+--     local eventKey = sourceGUID .. "_" .. spellID .. "_" .. eventType
+--     local currentTime = GetTime()
+    
+--     -- Check if we've already processed this spell cast recently (within 0.5 seconds)
+--     if self.recentCDREvents[eventKey] and (currentTime - self.recentCDREvents[eventKey]) < 0.1 then
+--         return
+--     end
+    
+--     -- Record that we're processing this spell cast
+--     self.recentCDREvents[eventKey] = currentTime
+    
+--     -- Periodically clean up old entries (once per minute)
+--     if (currentTime - self.lastCDRCleanup) > 60 then
+--         self.lastCDRCleanup = currentTime
+--         for key, timestamp in pairs(self.recentCDREvents) do
+--             if (currentTime - timestamp) > 10 then -- Remove entries older than 10 seconds
+--                 self.recentCDREvents[key] = nil
+--             end
+--         end
+--     end
+--     -- Find the casting unit from GUID if possible
+--     local castingUnit
+--     for unit in pairs({player = true, target = true, focus = true}) do
+--         if UnitExists(unit) and UnitGUID(unit) == sourceGUID then
+--             castingUnit = unit
+--             break
+--         end
+--     end
+    
+--     -- Try to find in party/raid
+--     if not castingUnit and IsInGroup() then
+--         local prefix = IsInRaid() and "raid" or "party"
+--         local count = IsInRaid() and GetNumGroupMembers() or GetNumGroupMembers() - 1
+--         for i = 1, count do
+--             local unit = prefix..i
+--             if UnitExists(unit) and UnitGUID(unit) == sourceGUID then
+--                 castingUnit = unit
+--                 break
+--             end
+--         end
+--     end
+    
+--     -- Try arena units
+--     if not castingUnit then
+--         for i = 1, 5 do
+--             local unit = "arena"..i
+--             if UnitExists(unit) and UnitGUID(unit) == sourceGUID then
+--                 castingUnit = unit
+--                 break
+--             end
+--         end
+--     end
+    
+--     for _, bar in ipairs(self.bars) do
+--         for _, icon in ipairs(bar.active) do
+--             if addon.CooldownReduction[spellID] and addon.CooldownReduction[spellID][icon.spellID] then
+--                 local reductionInfo = addon.CooldownReduction[spellID][icon.spellID]
+--                 local reduction, requiredEvent
+--                 if type(reductionInfo) == "number" then
+--                     reduction = reductionInfo
+--                 elseif type(reductionInfo) == "table" then
+--                     reduction = reductionInfo.amount
+--                     requiredEvent = reductionInfo.event
+--                 else
+--                     return
+--                 end
+                
+--                 -- Check if event requirements are met
+--                 if requiredEvent and requiredEvent ~= eventType and requiredEvent ~= "ANY" then
+--                     return
+--                 end
+--                 -- Check for buff requirements
+--                 local applyReduction = true
+--                 if reductionInfo.buffName and castingUnit then
+--                     -- Check for specific named buff
+--                     if reductionInfo.buffName == "True Bearing" then
+--                         local hasTrueBearing = self:HasBuff(castingUnit, "True Bearing")                     
+--                         if hasTrueBearing then
+--                             reduction = reduction + 3 -- 0.5 p cp with True Bearing
+--                         end
+--                     else 
+--                         applyReduction = self:HasBuff(castingUnit, reductionInfo.buffName)
+--                     end
+--                 elseif reductionInfo.buffCheck and castingUnit then
+--                     -- Apotheosis check for Holy Priest spells
+--                     local hasApotheosis = self:HasBuff(castingUnit, "Apotheosis")
+--                     if hasApotheosis then
+--                         reduction = reduction * 3 -- Triple reduction with Apotheosis
+--                     end
+--                 end
+
+--                 if spellID == 342247 and castingUnit then
+--                     local bool = false
+--                     AuraUtil.ForEachAura(castingUnit, "HELPFUL", nil, function(_, _, _, _, _, _, _, _, _, foundID, ...)
+--                             if foundID == 342246 then
+--                                 bool = true
+--                                 return
+--                             end
+--                     end)
+--                     if bool == true then
+--                         return
+--                     end
+                    
+--                 end
+--                 -- Verify it's the same player's cooldown
+--                 local samePlayer = false
+--                 if sourceGUID and icon.sourceGUID then
+--                     samePlayer = (sourceGUID == icon.sourceGUID)
+--                 elseif sourceName and icon.sourceName then
+--                     samePlayer = (sourceName == icon.sourceName)
+--                 end
+                
+-- -- Apply the cooldown reduction if conditions are met
+-- if samePlayer and applyReduction then
+--     local start, duration = icon.cooldown:GetCooldownTimes()
+--     if start > 0 and duration > 0 then
+--         local startTime = start / 1000
+--         local totalDuration = duration / 1000
+        
+--         local currentTime = GetTime()
+--         local endTime = startTime + totalDuration
+--         local newEndTime = endTime - reduction
+        
+--         -- Check if this is a spell with charges and if reduction would complete a charge
+--         local maxCharges = addon.Cooldowns[icon.spellID] and addon.Cooldowns[icon.spellID].charges
+--         if maxCharges and icon.charges ~= nil and icon.charges < maxCharges and newEndTime <= currentTime then
+--             -- Calculate excess reduction (amount beyond completing this charge)
+--             local excessReduction = currentTime - newEndTime
+            
+--             -- Increment charge
+--             icon.charges = icon.charges + 1
+--             icon.Count:SetText(icon.charges > 0 and icon.charges or "")
+            
+--             -- If we still have charges to gain, apply excess reduction to next charge
+--             if icon.charges < maxCharges then
+--                 -- Apply excess reduction to next charge
+--                 local adjustedStart = currentTime - excessReduction
+
+                
+--                 icon.cooldown:SetCooldown(adjustedStart, totalDuration)
+                
+--                 -- Update internal tracking
+--                 icon.cooldown.start = adjustedStart
+--                 if icon.cooldown.finish then
+--                     icon.cooldown.finish = adjustedStart + totalDuration
+--                 end
+--             else
+--                 -- All charges restored - reset cooldown to 0 but keep it visible
+--                 icon.cooldown:SetCooldown(0, 0)
+--                 if icon.cooldown.finish then
+--                     icon.cooldown.finish = 0
+--                 end
+--             end
+--             return
+--         end
+        
+--         -- Ensure we don't reduce below 0
+--         newEndTime = math.max(currentTime, newEndTime)
+        
+--         local newRemainingTime = newEndTime - currentTime
+        
+--         -- Calculate the new start time based on the reduced duration
+--         local newStartTime = currentTime - (totalDuration - newRemainingTime)
+        
+--         -- Update the cooldown display
+--         icon.cooldown:SetCooldown(newStartTime, totalDuration)
+        
+--         icon.cooldown.start = newStartTime
+--         -- Update internal tracking
+--         if icon.cooldown.finish then
+--             icon.cooldown.finish = newEndTime
+--         end
+        
+--         -- Visually indicate the reduction
+--         if icon.flashAnim and icon.flashAnim.Play then
+--             icon.flashAnim:Play()
+--         end
+--     end
+-- end
+-- end
+-- end
+-- end
+-- end
+
 function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, eventType)
     if not addon.CooldownReduction[spellID] then return end
     
-    -- Prevent duplicate processing within a short timeframe
+    -- Generate a unique key for this spell cast to prevent duplicate processing
     local eventKey = sourceGUID .. "_" .. spellID .. "_" .. eventType
     local currentTime = GetTime()
     
+    -- Check if we've already processed this spell cast recently (within 0.1 seconds)
     if self.recentCDREvents[eventKey] and (currentTime - self.recentCDREvents[eventKey]) < 0.1 then
         return
     end
     
+    -- Record that we're processing this spell cast
     self.recentCDREvents[eventKey] = currentTime
     
-    -- Cleanup old entries periodically
+    -- Periodically clean up old entries (once per minute)
     if (currentTime - self.lastCDRCleanup) > 60 then
         self.lastCDRCleanup = currentTime
         for key, timestamp in pairs(self.recentCDREvents) do
-            if (currentTime - timestamp) > 10 then
+            if (currentTime - timestamp) > 10 then -- Remove entries older than 10 seconds
                 self.recentCDREvents[key] = nil
             end
         end
     end
     
-    -- Try to find a reference to the casting unit
+    -- Find the casting unit from GUID if possible
     local castingUnit
     for unit in pairs({player = true, target = true, focus = true}) do
         if UnitExists(unit) and UnitGUID(unit) == sourceGUID then
@@ -2538,6 +2728,18 @@ function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, event
         end
     end
     
+    -- Try arena units if unit not found
+    if not castingUnit then
+        for i = 1, 5 do
+            local unit = "arena"..i
+            if UnitExists(unit) and UnitGUID(unit) == sourceGUID then
+                castingUnit = unit
+                break
+            end
+        end
+    end
+    
+    -- Try party/raid units if still not found
     if not castingUnit and IsInGroup() then
         local prefix = IsInRaid() and "raid" or "party"
         local count = IsInRaid() and GetNumGroupMembers() or GetNumGroupMembers() - 1
@@ -2550,17 +2752,9 @@ function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, event
         end
     end
     
-    if not castingUnit then
-        for i = 1, 5 do
-            local unit = "arena"..i
-            if UnitExists(unit) and UnitGUID(unit) == sourceGUID then
-                castingUnit = unit
-                break
-            end
-        end
-    end
-    
     for _, bar in ipairs(self.bars) do
+        local isEnemyTracking = (bar.settings.trackUnit == "ENEMY")
+        
         for _, icon in ipairs(bar.active) do
             if addon.CooldownReduction[spellID] and addon.CooldownReduction[spellID][icon.spellID] then
                 local reductionInfo = addon.CooldownReduction[spellID][icon.spellID]
@@ -2572,134 +2766,142 @@ function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, event
                     reduction = reductionInfo.amount
                     requiredEvent = reductionInfo.event
                 else
-                    return
+                    -- Skip to next icon if reduction info is invalid
+                    break
                 end
                 
-                -- Check if event requirements are met
+                -- Skip if event requirements aren't met
                 if requiredEvent and requiredEvent ~= eventType and requiredEvent ~= "ANY" then
-                    return
-                end
-                
-                -- Verify it's the same player's cooldown
-                local samePlayer = false
-                if sourceGUID and icon.sourceGUID then
-                    samePlayer = (sourceGUID == icon.sourceGUID)
-                elseif sourceName and icon.sourceName then
-                    samePlayer = (sourceName == icon.sourceName)
-                end
-                
-                if not samePlayer then 
-                    return 
-                end
-                
-                -- Check for buff requirements - less strict for "all enemies" tracking
-                local applyReduction = true
-                local isEnemyTracking = (bar.settings.trackUnit == "ENEMY")
-                
-                -- Only perform buff checks if we have a unit reference AND it's not "all enemies" tracking
-                -- OR it's a specific spell that absolutely requires the buff check
-                if castingUnit then
-                    -- We have a casting unit, so do normal buff checks
-                    if reductionInfo.buffName then
-                        if reductionInfo.buffName == "True Bearing" then
-                            local hasTrueBearing = self:HasBuff(castingUnit, "True Bearing")                     
-                            if hasTrueBearing then
-                                reduction = reduction + 3 -- Extra with True Bearing
-                            end
-                        else 
-                            applyReduction = self:HasBuff(castingUnit, reductionInfo.buffName)
-                        end
-                    elseif reductionInfo.buffCheck then
-                        local hasApotheosis = self:HasBuff(castingUnit, "Apotheosis")
-                        if hasApotheosis then
-                            reduction = reduction * 3
-                        end
-                    end
-                    
-                    -- Shimmer altered check
-                    if spellID == 342247 then
-                        local hasAltered = false
-                        AuraUtil.ForEachAura(castingUnit, "HELPFUL", nil, function(_, _, _, _, _, _, _, _, _, foundID)
-                            if foundID == 342246 then
-                                hasAltered = true
-                                return
-                            end
-                        end)
-                        if hasAltered then
-                            return
-                        end
-                    end
-                elseif isEnemyTracking then
-                    -- For "all enemies" tracking where we don't have a unit reference:
-                    -- Be more lenient with buff checks to allow cooldown reduction to work
-                    
-                    -- Skip only for critical buff dependencies that should never trigger without verification
-                    if reductionInfo.strictBuffCheck then
-                        applyReduction = false
-                    end
-                    
-                    -- Special exception for Shimmer Altered Time combo
-                    if spellID == 342247 then
-                        -- This is a special case where we should be strict - don't apply
-                        return
-                    end
+                    -- Skip to next icon
                 else
-                    -- For specific unit tracking (not "all enemies"), be strict with buff requirements
-                    if reductionInfo.buffName or reductionInfo.buffCheck then
-                        applyReduction = false
-                    end
-                end
-                
-                -- Apply the cooldown reduction
-                if applyReduction then
-                    local start, duration = icon.cooldown:GetCooldownTimes()
-                    if start > 0 and duration > 0 then
-                        local startTime = start / 1000
-                        local totalDuration = duration / 1000
-                        
-                        local currentTime = GetTime()
-                        local endTime = startTime + totalDuration
-                        local newEndTime = endTime - reduction
-                        
-                        -- Handle charge-based spells
-                        local maxCharges = addon.Cooldowns[icon.spellID] and addon.Cooldowns[icon.spellID].charges
-                        if maxCharges and icon.charges ~= nil and icon.charges < maxCharges and newEndTime <= currentTime then
-                            local excessReduction = currentTime - newEndTime
+                    -- Check if this is the same player's cooldown
+                    local samePlayer = false
+                    
+                    if isEnemyTracking then
+                        -- For "all enemies" tracking, try multiple matching strategies
+                        if sourceGUID and icon.sourceGUID then
+                            -- Direct GUID match
+                            samePlayer = (sourceGUID == icon.sourceGUID)
                             
-                            icon.charges = icon.charges + 1
-                            icon.Count:SetText(icon.charges > 0 and icon.charges or "")
-                            
-                            if icon.charges < maxCharges then
-                                local adjustedStart = currentTime - excessReduction
-                                icon.cooldown:SetCooldown(adjustedStart, totalDuration)
-                                
-                                icon.cooldown.start = adjustedStart
-                                if icon.cooldown.finish then
-                                    icon.cooldown.finish = adjustedStart + totalDuration
-                                end
-                            else
-                                icon.cooldown:SetCooldown(0, 0)
-                                if icon.cooldown.finish then
-                                    icon.cooldown.finish = 0
+                            -- For arena units with numeric sourceGUID (arena index)
+                            if not samePlayer and type(icon.sourceGUID) == "number" then
+                                local arenaUnit = "arena" .. icon.sourceGUID
+                                if UnitExists(arenaUnit) and UnitGUID(arenaUnit) == sourceGUID then
+                                    samePlayer = true
                                 end
                             end
-                            return
                         end
                         
-                        -- Apply regular cooldown reduction
-                        newEndTime = math.max(currentTime, newEndTime)
-                        local newRemainingTime = newEndTime - currentTime
-                        local newStartTime = currentTime - (totalDuration - newRemainingTime)
+                        -- Fallback to name matching if needed
+                        if not samePlayer and sourceName and icon.sourceName then
+                            samePlayer = (sourceName == icon.sourceName)
+                        end
+                    else
+                        -- For specific unit tracking, be more strict
+                        if sourceGUID and icon.sourceGUID then
+                            samePlayer = (sourceGUID == icon.sourceGUID)
+                        elseif sourceName and icon.sourceName then
+                            samePlayer = (sourceName == icon.sourceName)
+                        end
+                    end
+                    
+                    if samePlayer then
+                        -- Default to applying the reduction
+                        local applyReduction = true
                         
-                        icon.cooldown:SetCooldown(newStartTime, totalDuration)
-                        
-                        icon.cooldown.start = newStartTime
-                        if icon.cooldown.finish then
-                            icon.cooldown.finish = newEndTime
+                        -- Only do buff checks if we have a valid unit reference
+                        if castingUnit then
+                            if reductionInfo.buffName then
+                                if reductionInfo.buffName == "True Bearing" then
+                                    local hasTrueBearing = self:HasBuff(castingUnit, "True Bearing")
+                                    if hasTrueBearing then
+                                        reduction = reduction + 3 -- +3 with True Bearing
+                                    end
+                                else
+                                    applyReduction = self:HasBuff(castingUnit, reductionInfo.buffName)
+                                end
+                            elseif reductionInfo.buffCheck then
+                                local hasApotheosis = self:HasBuff(castingUnit, "Apotheosis")
+                                if hasApotheosis then
+                                    reduction = reduction * 3 -- Triple reduction with Apotheosis
+                                end
+                            end
+                            
+                            -- Special case for Shimmer
+                            if spellID == 342247 then
+                                local hasBuff = false
+                                AuraUtil.ForEachAura(castingUnit, "HELPFUL", nil, function(_, _, _, _, _, _, _, _, _, foundID)
+                                    if foundID == 342246 then
+                                        hasBuff = true
+                                        return
+                                    end
+                                end)
+                                if hasBuff then
+                                    applyReduction = false
+                                end
+                            end
+                        else
+                            -- No unit reference found - be lenient for "all enemies" tracking
+                            -- For specific tracking where buff checks are critical, we might still want to skip
+                            if not isEnemyTracking and (reductionInfo.buffName or reductionInfo.buffCheck) then
+                                applyReduction = false
+                            end
                         end
                         
-                        if icon.flashAnim and icon.flashAnim.Play then
-                            icon.flashAnim:Play()
+                        -- Apply the cooldown reduction if conditions are met
+                        if applyReduction then
+                            print("CDR true")
+                            local start, duration = icon.cooldown:GetCooldownTimes()
+                            if start > 0 and duration > 0 then
+                                start = start / 1000
+                                duration = duration / 1000
+                                
+                                local currentTime = GetTime()
+                                local endTime = start + duration
+                                local newEndTime = endTime - reduction
+                                
+                                -- Handle charges if applicable
+                                local maxCharges = addon.Cooldowns[icon.spellID] and addon.Cooldowns[icon.spellID].charges
+                                if maxCharges and icon.charges ~= nil and icon.charges < maxCharges and newEndTime <= currentTime then
+                                    -- Handle charge restoration
+                                    icon.charges = icon.charges + 1
+                                    icon.Count:SetText(icon.charges > 0 and icon.charges or "")
+                                    
+                                    if icon.charges < maxCharges then
+                                        -- Apply excess reduction to next charge
+                                        local excessReduction = currentTime - newEndTime
+                                        local adjustedStart = currentTime - excessReduction
+                                        
+                                        icon.cooldown:SetCooldown(adjustedStart, duration)
+                                        
+                                        -- Update internal tracking
+                                        icon.cooldown.start = adjustedStart
+                                        if icon.cooldown.finish then
+                                            icon.cooldown.finish = adjustedStart + duration
+                                        end
+                                    else
+                                        -- All charges restored
+                                        icon.cooldown:SetCooldown(0, 0)
+                                        if icon.cooldown.finish then
+                                            icon.cooldown.finish = 0
+                                        end
+                                    end
+                                else
+                                    -- Regular cooldown reduction
+                                    newEndTime = math.max(currentTime, newEndTime)
+                                    local newRemainingTime = newEndTime - currentTime
+                                    local newStartTime = currentTime - (duration - newRemainingTime)
+                                    
+                                    icon.cooldown:SetCooldown(newStartTime, duration)
+                                    
+                                    -- Update internal tracking
+                                    icon.cooldown.start = newStartTime
+                                    if icon.cooldown.finish then
+                                        icon.cooldown.finish = newEndTime
+                                    end
+                                    
+                                end
+                            end
                         end
                     end
                 end
@@ -2707,10 +2909,6 @@ function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, event
         end
     end
 end
-
-
-
-
 
 function OmniBar:UNIT_POWER_UPDATE(event, unit, powerType)
     -- Early returns for non-rage and non-warrior
