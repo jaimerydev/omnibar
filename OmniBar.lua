@@ -2850,7 +2850,6 @@ function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, event
                         
                         -- Apply the cooldown reduction if conditions are met
                         if applyReduction then
-                            print("CDR true")
                             local start, duration = icon.cooldown:GetCooldownTimes()
                             if start > 0 and duration > 0 then
                                 start = start / 1000
