@@ -449,6 +449,13 @@ function OmniBar:AddBarToOptions(key, refresh)
 						type = "toggle",
 						order = 17,
 					},
+					readyGlow = {
+						name = L["Ready Glow"],
+						desc = L["Display a glow animation when a spell comes off cooldown"],
+						width = "normal", 
+						type = "toggle",
+						order = 17.5, 
+					},					
 					tooltips = {
 						name = L["Show Tooltips"],
 						desc = L["Show spell information when mousing over the icons (the bar must be unlocked)"],

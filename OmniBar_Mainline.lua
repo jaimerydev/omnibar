@@ -123,7 +123,7 @@ addon.Cooldowns = {
     [586] = {duration = 20, class = "PRIEST"}, -- Fade
     [32375] = {duration = 60, class = "PRIEST"}, -- Mass Dispel
     [375901] = {duration = 45, class = "PRIEST"}, -- Mindgames
-    [316262] = {duration = 90, class = "PRIEST"}, -- Thoughtsteal
+    [316262] = {duration = 110, class = "PRIEST"}, -- Thoughtsteal
     [32379] = {duration = 10, class = "PRIEST"}, -- Shadow Word: Death
     [10060] = {duration = 120, class = "PRIEST"}, -- Power Infusion
     [8122] = {duration = 30, class = "PRIEST"}, -- Psychic Scream
