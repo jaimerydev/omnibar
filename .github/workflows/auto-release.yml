@@ -25,7 +25,7 @@ jobs:
       - name: Create ZIP archive
         run: |
           # Exclude .git directory and GitHub workflows when creating the zip
-          zip -r release.zip . -x "*.git*" "*.github*"
+          zip -r OmniBar.zip . -x "*.git*" "*.github*"
           
       - name: Create Release
         id: create_release
@@ -38,7 +38,7 @@ jobs:
           draft: false
           prerelease: false
           files: |
-            release.zip
+            OmniBar.zip
           body: |
             Automatic release created from commit ${{ env.VERSION }} on ${{ env.DATE }}
             

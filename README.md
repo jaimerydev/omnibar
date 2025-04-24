@@ -1,4 +1,7 @@
-# OmniBar
+## OmniBar
+
+# Latest Releases
+Download from [releases](https://github.com/jaimerydev/omnibar/releases)
 
 This is a fork and improvement on base omnibar
 https://github.com/jordonwow/omnibar
