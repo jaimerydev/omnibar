@@ -1366,40 +1366,76 @@ function OmniBar_ShowAnchor(self)
     end
 end
 
+local LCG = LibStub("LibCustomGlow-1.0")
 
 
+-- function OmniBar_SetupActivationOverlay(icon)
+--     if not icon.spellActivationAlert then
+--         icon.spellActivationAlert = CreateFrame("Frame", nil, icon, "ActionBarButtonSpellActivationAlert")
+--         icon.spellActivationAlert:SetSize(icon:GetWidth() * 1.4, icon:GetHeight() * 1.4)
+--         icon.spellActivationAlert:SetPoint("CENTER", icon, "CENTER", 0, 0)
+--         icon.spellActivationAlert:Hide()
+--     end
+-- end
+
+
+
+-- function OmniBar_HideActivationGlow(icon)
+--     if not icon or not icon.spellActivationAlert then return end
+    
+--     if icon.spellActivationAlert.ProcStartAnim and icon.spellActivationAlert.ProcStartAnim:IsPlaying() then
+--         icon.spellActivationAlert.ProcStartAnim:Stop()
+--     end
+    
+--     icon.spellActivationAlert:Hide()
+-- end
+
+
+-- function OmniBar_ShowActivationGlow(icon)
+--     if not icon then return end
+    
+--     OmniBar_SetupActivationOverlay(icon)
+    
+--     if not icon.spellActivationAlert:IsShown() then
+--         icon.spellActivationAlert:Show()
+--         icon.spellActivationAlert.ProcStartAnim:Play()
+--     end
+-- end
 function OmniBar_SetupActivationOverlay(icon)
-    if not icon.spellActivationAlert then
-        icon.spellActivationAlert = CreateFrame("Frame", nil, icon, "ActionBarButtonSpellActivationAlert")
-        icon.spellActivationAlert:SetSize(icon:GetWidth() * 1.4, icon:GetHeight() * 1.4)
-        icon.spellActivationAlert:SetPoint("CENTER", icon, "CENTER", 0, 0)
-        icon.spellActivationAlert:Hide()
+    if not icon.glowInitialized then
+        icon.glowInitialized = true
     end
 end
-
-
-function OmniBar_HideActivationGlow(icon)
-    if not icon or not icon.spellActivationAlert then return end
-    
-    if icon.spellActivationAlert.ProcStartAnim and icon.spellActivationAlert.ProcStartAnim:IsPlaying() then
-        icon.spellActivationAlert.ProcStartAnim:Stop()
-    end
-    
-    icon.spellActivationAlert:Hide()
-end
-
 
 function OmniBar_ShowActivationGlow(icon)
     if not icon then return end
     
-    OmniBar_SetupActivationOverlay(icon)
+    OmniBar_HideActivationGlow(icon)
     
-    if not icon.spellActivationAlert:IsShown() then
-        icon.spellActivationAlert:Show()
-        icon.spellActivationAlert.ProcStartAnim:Play()
-    end
+  
+    local frameLevel = icon:GetFrameLevel() + 5
+    
+
+ LCG.ProcGlow_Start(icon, {
+    color = {1, 1, 1, 0.7}, 
+    startAnim = false, 
+    duration = 1, 
+    xOffset = 2,
+    yOffset = 2, 
+    frameLevel = frameLevel 
+})
+    
+    icon.hasCustomGlow = true
 end
 
+function OmniBar_HideActivationGlow(icon)
+    if not icon then return end
+    
+    if icon.hasCustomGlow then
+        LCG.ProcGlow_Stop(icon)
+        icon.hasCustomGlow = nil
+    end
+end
 
 function OmniBar_CreateIcon(self)
     if InCombatLockdown() then return end

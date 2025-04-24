@@ -23,6 +23,7 @@ Libs\AceLocale-3.0\AceLocale-3.0.xml
 Libs\AceSerializer-3.0\AceSerializer-3.0.xml
 Libs\LibDualSpec-1.0\LibDualSpec-1.0.lua
 Libs\LibDeflate\LibDeflate.lua
+Libs\LibCustomGlow-1.0\LibCustomGlow-1.0.lua
 #@end-no-lib-strip@
 
 Locales\Locales.xml
