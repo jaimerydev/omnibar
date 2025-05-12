@@ -2217,6 +2217,32 @@ function OmniBar:AddSpellCast(event, sourceGUID, sourceName, sourceFlags, spellI
         targetSpecID = self.arenaSpecMap[sourceGUID]
     end
 
+     if spellID == 351338 and not targetSpecID and self.inArena then
+        -- For Quell specifically, try harder to find the correct arena unit and spec
+        for i = 1, MAX_ARENA_SIZE do
+            local unit = "arena" .. i
+            if UnitExists(unit) then
+                -- Check by GUID first
+                if UnitGUID(unit) == sourceGUID then
+                    local specID = GetArenaOpponentSpec(i)
+                    if specID and specID > 0 then
+                        targetSpecID = specID
+                        break
+                    end
+                end
+                
+                -- Check by name if GUID didn't match
+                if not targetSpecID and sourceName and GetUnitName(unit, true) == sourceName then
+                    local specID = GetArenaOpponentSpec(i)
+                    if specID and specID > 0 then
+                        targetSpecID = specID
+                        break
+                    end
+                end
+            end
+        end
+    end
+
     local charges = addon.Cooldowns[spellID].charges
 
     local duration = customDuration or GetCooldownDuration(addon.Cooldowns[spellID], targetSpecID)
