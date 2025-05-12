@@ -12,7 +12,7 @@ addon.Resets = {
     -- [133] = {{spellID = 190319, amount = 3}},
 
 	--iceblock
-	[235219] = {45438},
+	--[235219] = {45438},
 }
 addon.Cooldowns = {
 

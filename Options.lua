@@ -363,6 +363,22 @@ function OmniBar:AddBarToOptions(key, refresh)
 							self:Refresh(true)
 						end,
 					},
+					showAfterCast = {
+    name = L["As Spells are Cast"],
+    desc = L["Only show icons after they have been used at least once"],
+    disabled = function()
+        return not self.db.profile.bars[key].showUnused
+    end,
+    width = "normal",
+    type = "toggle",
+    order = 6.5,
+    set = function(info, state)
+        local option = info[#info]
+        self.db.profile.bars[key][option] = state
+        _G[key].castHistory = {}
+        self:Refresh(true)
+    end,
+},
 					growUpward = {
 						name = L["Grow Rows Upward"],
 						desc = L["Toggle the grow direction of the icons"],

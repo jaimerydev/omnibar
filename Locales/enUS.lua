@@ -139,4 +139,7 @@ L["Used Icon Transparency"] = "Used Icon Transparency"
 L["Set the transparency of active icons"] = "Set the transparency of active icons"
 L["Cooldown Reduction"] = "Cooldown Reduction"
 L["Do Not Sort"] = "Do Not Sort"
-
+L["Ready Glow"] = true 
+L["Display a glow animation when a spell comes off cooldown"] = true
+L["Only show icons after they have been used at least once"] = true
+L["As Spells are Cast"] = true

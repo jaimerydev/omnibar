@@ -163,6 +163,8 @@ local DEFAULTS = {
     usedAlpha         = 1.0,
     world             = true,
     readyGlow         = false,  
+    showAfterCast     = false,
+
 }
 
 
@@ -195,7 +197,8 @@ function OmniBar:OnInitialize()
 
 self.recentCDREvents = {}
 self.lastCDRCleanup = GetTime()
-    
+        self.lastFullCDRWipe = GetTime()  -- Add this line
+
 
     self.arenaSpecMap = {}
     self.cooldowns = addon.Cooldowns
@@ -206,7 +209,6 @@ self.lastCDRCleanup = GetTime()
     
     self.lastRage = {}
     self.warriorSpecMap = {} 
-
 
 
     self.inArena = false
@@ -568,6 +570,22 @@ self.lastCDRCleanup = GetTime()
 
 
 
+    -- Cold Snap reduces Ice Block cooldown by 5 minutes (300 seconds)
+addon.CooldownReduction[235219] = addon.CooldownReduction[235219] or {}
+addon.CooldownReduction[235219][45438] = {  -- Ice Block
+    amount = 300,
+    event = "SPELL_CAST_SUCCESS"
+}
+
+-- Also add to the global cooldown reduction
+if not self.db.global.cooldownReduction[235219] then
+    self.db.global.cooldownReduction[235219] = {}
+end
+self.db.global.cooldownReduction[235219][45438] = {
+    amount = 300,
+    event = "SPELL_CAST_SUCCESS"
+}
+
     self:SetupOptions()
     self:SetupFlashAnimation()
 
@@ -595,10 +613,15 @@ function OmniBar:PLAYER_ENTERING_WORLD()
             castInfo.expiryTimer:Cancel()
         end
     end
+
     wipe(self.guardianSpiritCasts)
+
 
     for _, bar in ipairs(self.bars) do
         if not bar.disabled then
+               if bar.castHistory then
+            wipe(bar.castHistory)
+        end
             OmniBar_OnEvent(bar, "PLAYER_ENTERING_WORLD")
         end
     end
@@ -613,7 +636,11 @@ function OmniBar:ARENA_PREP_OPPONENT_SPECIALIZATIONS()
         if not bar.disabled then
             bar.detected = {}
             wipe(bar.active)
+
             bar.arenaSpecMap = {}
+             if bar.castHistory then  -- Add safety check
+            wipe(bar.castHistory)
+        end
             OmniBar_ResetIcons(bar)
 
             for i = 1, MAX_ARENA_SIZE do
@@ -683,6 +710,10 @@ function OmniBar:ARENA_OPPONENT_UPDATE(event, unit, updateType)
         for _, bar in ipairs(self.bars) do
             if not bar.disabled then
                 wipe(bar.detected)
+                 if bar.castHistory then  -- Add safety check
+            wipe(bar.castHistory)
+        end
+
                 wipe(bar.active)
                 bar.arenaSpecMap = {}
                 OmniBar_ResetIcons(bar)
@@ -701,110 +732,6 @@ function OmniBar:ARENA_OPPONENT_UPDATE(event, unit, updateType)
         wipe(self.guardianSpiritCasts)
         return
     end
-
-    
-    
-    
-
-    
-    
-    
-    
-    
-    
-    
-                        
-    
-    
-    
-    
-    
-    
-    
-                                
-    
-    
-    
-    
-    
-    
-    
-    
-    
-                                
-    
-    
-    
-    
-    
-    
-    
-    
-                                    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-                                            
-    
-    
-    
-    
-    
-                                    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-
-    
-    
-    
-    
-    
-    
-    
-    
-    
-                                        
-    
-    
-    
-    
-    
-    
-    
-    
-    
     
 end
 local function GetDefaultCommChannel()
@@ -1212,6 +1139,8 @@ function OmniBar:Initialize(key, name)
     f.icons = {}
     f.active = {}
     f.detected = {}
+    f.castHistory = f.castHistory or {} -- Initialize with safety check
+
     f.spellCasts = self.spellCasts
     f.specs = self.specs
     f.BASE_ICON_SIZE = BASE_ICON_SIZE
@@ -2289,6 +2218,62 @@ function OmniBar:AddSpellCast(event, sourceGUID, sourceName, sourceFlags, spellI
     }
 
     self:SendMessage("OmniBar_SpellCast", name, spellID)
+
+-- Add support for showAfterCast feature
+for _, bar in ipairs(self.bars) do
+    if bar.settings.showAfterCast and not bar.disabled and bar.settings.showUnused then
+        -- Create a copy of the spell cast info we just stored
+        local info = {}
+        for k, v in pairs(self.spellCasts[name][spellID]) do
+            info[k] = v
+        end
+        
+        -- Check if this bar should track this unit
+        if OmniBar_IsUnitEnabled(bar, info) then
+            -- Track by spellID only, but check for duplicates before adding
+            if not bar.castHistory[spellID] then
+                bar.castHistory[spellID] = true
+                
+                -- Check if we already have this exact icon
+                local alreadyExists = false
+                for _, icon in ipairs(bar.active) do
+                    if icon.spellID == spellID and icon:IsVisible() then
+                        -- Check if it's the same source
+                        if (sourceGUID and icon.sourceGUID == sourceGUID) or
+                           (name and icon.sourceName == name) then
+                            alreadyExists = true
+                            break
+                        end
+                    end
+                end
+                
+                if not alreadyExists then
+                    OmniBar_AddIcon(bar, info)
+                    OmniBar_Position(bar)
+                end
+            else
+                -- Spell already cast before, but check if we need to add for a different source
+                if bar.settings.multiple then
+                    local needsNewIcon = true
+                    for _, icon in ipairs(bar.active) do
+                        if icon.spellID == spellID and icon:IsVisible() then
+                            if (sourceGUID and icon.sourceGUID == sourceGUID) or
+                               (name and icon.sourceName == name) then
+                                needsNewIcon = false
+                                break
+                            end
+                        end
+                    end
+                    
+                    if needsNewIcon then
+                        OmniBar_AddIcon(bar, info)
+                        OmniBar_Position(bar)
+                    end
+                end
+            end
+        end
+    end
+end
 end
 
 function OmniBar:AlertGroup(...)
@@ -2428,6 +2413,8 @@ end
 function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, eventType, castGUID)
     if not addon.CooldownReduction[spellID] then return end
     
+    local currentTime = GetTime()
+    
     -- Create a unique event key based on available identifiers
     local eventKey
     if castGUID then
@@ -2435,27 +2422,48 @@ function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, event
         eventKey = castGUID .. "_" .. spellID
     else
         -- For combat log events without castGUID, use the combination of identifiers
-        -- This prevents the same combat log event from being processed twice
         eventKey = sourceGUID .. "_" .. spellID .. "_" .. eventType
     end
     
     -- Initialize tracking if needed
     self.recentCDREvents = self.recentCDREvents or {}
     
-    -- Check if we've already processed this exact event
-    if self.recentCDREvents[eventKey] then
-        return
+    -- Different duplicate prevention for channeled vs normal spells
+    if CHANNELED_SPELLS[spellID] then
+        -- For channeled spells, use time-based duplicate prevention
+        if self.recentCDREvents[eventKey] and (currentTime - self.recentCDREvents[eventKey]) < 0.01 then
+            return
+        end
+        -- Store timestamp for channeled spells
+        self.recentCDREvents[eventKey] = currentTime
+    else
+        -- For non-channeled spells, use event-based duplicate prevention
+        if self.recentCDREvents[eventKey] then
+            return
+        end
+        -- Store boolean for non-channeled spells
+        self.recentCDREvents[eventKey] = true
     end
     
-    -- Mark this event as processed
-    self.recentCDREvents[eventKey] = true
-    
     -- Clean up old entries periodically to prevent memory bloat
-    local currentTime = GetTime()
     if (currentTime - (self.lastCDRCleanup or 0)) > 10 then
         self.lastCDRCleanup = currentTime
-        -- Clear the entire tracking table since we only care about recent events
-        wipe(self.recentCDREvents)
+        -- For mixed tracking (timestamps and booleans)
+        for key, value in pairs(self.recentCDREvents) do
+            if type(value) == "number" then
+                -- It's a timestamp from a channeled spell
+                if (currentTime - value) > 1 then
+                    self.recentCDREvents[key] = nil
+                end
+            end
+            -- Boolean values (non-channeled) are kept until full wipe
+        end
+        
+        -- Do a full wipe every 60 seconds for non-channeled entries
+        if (currentTime - (self.lastFullCDRWipe or 0)) > 60 then
+            self.lastFullCDRWipe = currentTime
+            wipe(self.recentCDREvents)
+        end
     end
     
     -- Find the casting unit
@@ -2648,7 +2656,6 @@ function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, event
         end
     end
 end
-
 function OmniBar:UNIT_POWER_UPDATE(event, unit, powerType)
     
     if powerType ~= "RAGE" then return end
@@ -3194,7 +3201,9 @@ function OmniBar_ResetIcons(self)
         self.icons[i]:Hide()
     end
     wipe(self.active)
-
+if not self.settings.showAfterCast then
+    wipe(self.castHistory)
+end
     if self.disabled then return end
 
     if self.settings.showUnused then
@@ -3278,7 +3287,9 @@ function OmniBar_StartCooldown(self, icon, start)
     icon.cooldown:SetCooldown(start, icon.duration)
     icon.cooldown.finish = start + icon.duration
 
-    icon.cooldown:SetSwipeColor(0, 0, 0, self.settings.swipeAlpha or 0.65)
+      local activeSwipeAlpha = math.min((self.settings.swipeAlpha or 0.65) + 0.6, 1.0)
+    icon.cooldown:SetSwipeColor(0, 0, 0, activeSwipeAlpha)
+
 
     icon.cooldown:SetScript("OnUpdate", nil)
 
@@ -3292,7 +3303,11 @@ end
 function OmniBar_AddIcon(self, info)
     if (not OmniBar_IsUnitEnabled(self, info)) then return end
     if (not OmniBar_IsSpellEnabled(self, info.spellID)) then return end
-
+    if self.settings.showUnused and self.settings.showAfterCast and not info.test then
+    if not self.castHistory[info.spellID] then
+        return
+    end
+    end
     local icon, duplicate
 
     for i = 1, #self.active do
