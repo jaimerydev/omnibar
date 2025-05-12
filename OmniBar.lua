@@ -2304,7 +2304,8 @@ function OmniBar:COMBAT_LOG_EVENT_UNFILTERED()
             [216331] = true, 
             [31884] = true, 
             [10060] = true, 
-            [200183] = true 
+            [200183] = true, 
+            [363916] = true
         }
 
     local CHANNELED_SPELLS_CAST_ONLY = {
