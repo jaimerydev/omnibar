@@ -479,6 +479,13 @@ function OmniBar:AddBarToOptions(key, refresh)
 						type = "toggle",
 						order = 18,
 					},
+					hideChargedCooldownText = {
+    name = L["Hide Cooldown Text Between Charges"],
+    desc = L["Hide cooldown text when spell charges are available (charges > 0). Text only shows when all charges are depleted"],
+    width = "normal",
+    type = "toggle",
+    order = 18.5,
+},
 					lb2 = {
 						name = "",
 						type = "description",

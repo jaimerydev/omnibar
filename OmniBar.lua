@@ -164,6 +164,8 @@ local DEFAULTS = {
     world             = true,
     readyGlow         = false,  
     showAfterCast     = false,
+    hideChargedCooldownText = false,
+
 
 }
 
@@ -2598,11 +2600,13 @@ function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, event
                                     icon.Count:SetText(icon.charges > 0 and icon.charges or "")
                                     OmniBar_UpdateBorder(bar, icon)
 
-                                    if wasZero and icon.charges > 0 then
+if bar.settings.hideChargedCooldownText and wasZero and icon.charges > 0 then
                                         icon.cooldown:SetCooldown(0, 0)
-                                        icon.cooldown:SetHideCountdownNumbers(true)
-                                        icon.cooldown.noCooldownCount = true
-                                        
+                                            
+                                        if bar.settings.hideChargedCooldownText then  -- Add this check
+                                            icon.cooldown:SetHideCountdownNumbers(true)
+                                            icon.cooldown.noCooldownCount = true
+                                        end
                                         local excessReduction = currentTime - newEndTime
                                         local adjustedStart = currentTime - excessReduction
                                         icon.cooldown:SetCooldown(adjustedStart, duration)
@@ -3061,13 +3065,15 @@ function OmniBar_CooldownFinish(self, force)
             icon.Count:SetText(icon.charges)
 
              local bar = icon:GetParent():GetParent()
-        if icon.charges > 0 then
-            icon.cooldown:SetHideCountdownNumbers(true)
-            icon.cooldown.noCooldownCount = true
-        else
-            icon.cooldown:SetHideCountdownNumbers(not bar.settings.cooldownCount and true or false)
-            icon.cooldown.noCooldownCount = (not bar.settings.cooldownCount)
-        end
+        if bar.settings.hideChargedCooldownText then  -- Add this check
+    if icon.charges > 0 then
+        icon.cooldown:SetHideCountdownNumbers(true)
+        icon.cooldown.noCooldownCount = true
+    else
+        icon.cooldown:SetHideCountdownNumbers(not bar.settings.cooldownCount and true or false)
+        icon.cooldown.noCooldownCount = (not bar.settings.cooldownCount)
+    end
+end
             
             if wasZero and bar.settings.readyGlow ~= false then
                 
@@ -3380,18 +3386,20 @@ if icon.charges > 0 then
     OmniBar_UpdateBorder(self, icon)
     
     -- Update text visibility immediately after charge change
-    if icon.charges > 0 then
-        icon.cooldown:SetHideCountdownNumbers(true)
-        icon.cooldown.noCooldownCount = true
-    else
-        icon.cooldown:SetHideCountdownNumbers(not self.settings.cooldownCount and true or false)
-        icon.cooldown.noCooldownCount = (not self.settings.cooldownCount)
-        
-        -- Force cooldown refresh when showing text to fix font
-        if icon.cooldown.finish and icon.cooldown.finish > GetTime() then
-            local remaining = icon.cooldown.finish - GetTime()
-            local start = GetTime() - (icon.duration - remaining)
-            icon.cooldown:SetCooldown(start, icon.duration)
+    if self.settings.hideChargedCooldownText then  -- Add this check
+        if icon.charges > 0 then
+            icon.cooldown:SetHideCountdownNumbers(true)
+            icon.cooldown.noCooldownCount = true
+        else
+            icon.cooldown:SetHideCountdownNumbers(not self.settings.cooldownCount and true or false)
+            icon.cooldown.noCooldownCount = (not self.settings.cooldownCount)
+            
+            -- Force cooldown refresh when showing text to fix font
+            if icon.cooldown.finish and icon.cooldown.finish > GetTime() then
+                local remaining = icon.cooldown.finish - GetTime()
+                local start = GetTime() - (icon.duration - remaining)
+                icon.cooldown:SetCooldown(start, icon.duration)
+            end
         end
     end
     
@@ -3401,14 +3409,14 @@ if icon.charges > 0 then
     return icon
 end
     else
-        icon.charges = maxCharges - 1
-        icon.Count:SetText(icon.charges)
-        -- Hide text for new charges > 0
-        if icon.charges > 0 then
-            icon.cooldown:SetHideCountdownNumbers(true)
-            icon.cooldown.noCooldownCount = true
-        end
+    icon.charges = maxCharges - 1
+    icon.Count:SetText(icon.charges)
+    -- Hide text for new charges > 0
+    if self.settings.hideChargedCooldownText and icon.charges > 0 then  -- Add this check
+        icon.cooldown:SetHideCountdownNumbers(true)
+        icon.cooldown.noCooldownCount = true
     end
+end
 else
     icon.charges = nil
     icon.Count:SetText(nil)
@@ -3464,13 +3472,19 @@ end
 
 function OmniBar_UpdateIcons(self)
     for i = 1, self.numIcons do
-if not self.icons[i].charges or self.icons[i].charges == 0 then
-    self.icons[i].cooldown:SetHideCountdownNumbers(not self.settings.cooldownCount and true or false)
-    self.icons[i].cooldown.noCooldownCount = (not self.settings.cooldownCount)
-else
-    self.icons[i].cooldown:SetHideCountdownNumbers(true)
-    self.icons[i].cooldown.noCooldownCount = true
-end
+        if self.settings.hideChargedCooldownText then  -- Add this check
+            if not self.icons[i].charges or self.icons[i].charges == 0 then
+                self.icons[i].cooldown:SetHideCountdownNumbers(not self.settings.cooldownCount and true or false)
+                self.icons[i].cooldown.noCooldownCount = (not self.settings.cooldownCount)
+            else
+                self.icons[i].cooldown:SetHideCountdownNumbers(true)
+                self.icons[i].cooldown.noCooldownCount = true
+            end
+        else
+            -- Default behavior
+            self.icons[i].cooldown:SetHideCountdownNumbers(not self.settings.cooldownCount and true or false)
+            self.icons[i].cooldown.noCooldownCount = (not self.settings.cooldownCount)
+        end
         self.icons[i].cooldown:SetSwipeColor(0, 0, 0, self.settings.swipeAlpha or 0.65)
 
         

@@ -143,3 +143,5 @@ L["Ready Glow"] = true
 L["Display a glow animation when a spell comes off cooldown"] = true
 L["Only show icons after they have been used at least once"] = true
 L["As Spells are Cast"] = true
+L["Hide cooldown text when spell charges are available (charges > 0). Text only shows when all charges are depleted'"] = true
+L["Hide Cooldown Text Between Charges"] = true
