@@ -2398,32 +2398,40 @@ end
 
 
 
-function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, eventType)
+function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, eventType, castGUID)
     if not addon.CooldownReduction[spellID] then return end
     
+    -- Create a unique event key based on available identifiers
+    local eventKey
+    if castGUID then
+        -- If we have a castGUID, it's unique per cast
+        eventKey = castGUID .. "_" .. spellID
+    else
+        -- For combat log events without castGUID, use the combination of identifiers
+        -- This prevents the same combat log event from being processed twice
+        eventKey = sourceGUID .. "_" .. spellID .. "_" .. eventType
+    end
     
-    local eventKey = sourceGUID .. "_" .. spellID .. "_" .. eventType
-    local currentTime = GetTime()
+    -- Initialize tracking if needed
+    self.recentCDREvents = self.recentCDREvents or {}
     
-    
-    if self.recentCDREvents[eventKey] and (currentTime - self.recentCDREvents[eventKey]) < 0.1 then
+    -- Check if we've already processed this exact event
+    if self.recentCDREvents[eventKey] then
         return
     end
     
+    -- Mark this event as processed
+    self.recentCDREvents[eventKey] = true
     
-    self.recentCDREvents[eventKey] = currentTime
-    
-    
-    if (currentTime - self.lastCDRCleanup) > 60 then
+    -- Clean up old entries periodically to prevent memory bloat
+    local currentTime = GetTime()
+    if (currentTime - (self.lastCDRCleanup or 0)) > 10 then
         self.lastCDRCleanup = currentTime
-        for key, timestamp in pairs(self.recentCDREvents) do
-            if (currentTime - timestamp) > 10 then 
-                self.recentCDREvents[key] = nil
-            end
-        end
+        -- Clear the entire tracking table since we only care about recent events
+        wipe(self.recentCDREvents)
     end
     
-    
+    -- Find the casting unit
     local castingUnit
     for unit in pairs({player = true, target = true, focus = true}) do
         if UnitExists(unit) and UnitGUID(unit) == sourceGUID then
@@ -2431,7 +2439,6 @@ function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, event
             break
         end
     end
-    
     
     if not castingUnit then
         for i = 1, 5 do
@@ -2442,7 +2449,6 @@ function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, event
             end
         end
     end
-    
     
     if not castingUnit and IsInGroup() then
         local prefix = IsInRaid() and "raid" or "party"
@@ -2456,6 +2462,7 @@ function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, event
         end
     end
     
+    -- Process the cooldown reduction
     for _, bar in ipairs(self.bars) do
         local isEnemyTracking = (bar.settings.trackUnit == "ENEMY")
         
@@ -2470,23 +2477,17 @@ function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, event
                     reduction = reductionInfo.amount
                     requiredEvent = reductionInfo.event
                 else
-                    
                     break
                 end
                 
-                
                 if requiredEvent and requiredEvent ~= eventType and requiredEvent ~= "ANY" then
-                    
+                    -- Skip if event type doesn't match
                 else
-                    
                     local samePlayer = false
                     
                     if isEnemyTracking then
-                        
                         if sourceGUID and icon.sourceGUID then
-                            
                             samePlayer = (sourceGUID == icon.sourceGUID)
-                            
                             
                             if not samePlayer and type(icon.sourceGUID) == "number" then
                                 local arenaUnit = "arena" .. icon.sourceGUID
@@ -2496,12 +2497,10 @@ function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, event
                             end
                         end
                         
-                        
                         if not samePlayer and sourceName and icon.sourceName then
                             samePlayer = (sourceName == icon.sourceName)
                         end
                     else
-                        
                         if sourceGUID and icon.sourceGUID then
                             samePlayer = (sourceGUID == icon.sourceGUID)
                         elseif sourceName and icon.sourceName then
@@ -2510,16 +2509,14 @@ function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, event
                     end
                     
                     if samePlayer then
-                        
                         local applyReduction = true
-                        
                         
                         if castingUnit then
                             if reductionInfo.buffName then
                                 if reductionInfo.buffName == "True Bearing" then
                                     local hasTrueBearing = self:HasBuff(castingUnit, "True Bearing")
                                     if hasTrueBearing then
-                                        reduction = reduction + 3 
+                                        reduction = reduction + 3
                                     end
                                 else
                                     applyReduction = self:HasBuff(castingUnit, reductionInfo.buffName)
@@ -2527,10 +2524,9 @@ function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, event
                             elseif reductionInfo.buffCheck then
                                 local hasApotheosis = self:HasBuff(castingUnit, "Apotheosis")
                                 if hasApotheosis then
-                                    reduction = reduction * 3 
+                                    reduction = reduction * 3
                                 end
                             end
-                            
                             
                             if spellID == 342247 then
                                 local hasBuff = false
@@ -2545,13 +2541,10 @@ function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, event
                                 end
                             end
                         else
-                            
-                            
                             if not isEnemyTracking and (reductionInfo.buffName or reductionInfo.buffCheck) then
                                 applyReduction = false
                             end
                         end
-                        
                         
                         if applyReduction then
                             local start, duration = icon.cooldown:GetCooldownTimes()
@@ -2563,47 +2556,37 @@ function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, event
                                 local endTime = start + duration
                                 local newEndTime = endTime - reduction
                                 
-                                
                                 local maxCharges = addon.Cooldowns[icon.spellID] and addon.Cooldowns[icon.spellID].charges
-if maxCharges and icon.charges ~= nil and icon.charges < maxCharges and newEndTime <= currentTime then
-    local wasZero = (icon.charges == 0)
-    icon.charges = icon.charges + 1
-    icon.Count:SetText(icon.charges > 0 and icon.charges or "")
-        OmniBar_UpdateBorder(bar, icon)
+                                if maxCharges and icon.charges ~= nil and icon.charges < maxCharges and newEndTime <= currentTime then
+                                    local wasZero = (icon.charges == 0)
+                                    icon.charges = icon.charges + 1
+                                    icon.Count:SetText(icon.charges > 0 and icon.charges or "")
+                                    OmniBar_UpdateBorder(bar, icon)
 
-    -- If going from 0->1, completely restart the cooldown to hide text
-    if wasZero and icon.charges > 0 then
-        -- Clear the old cooldown
-        icon.cooldown:SetCooldown(0, 0)
-        
-        -- Set text visibility
-        icon.cooldown:SetHideCountdownNumbers(true)
-        icon.cooldown.noCooldownCount = true
-        
-        -- Start a new cooldown cycle with the excess reduction
-        local excessReduction = currentTime - newEndTime
-        local adjustedStart = currentTime - excessReduction
-        icon.cooldown:SetCooldown(adjustedStart, duration)
-        
-        -- Update stored values
-        icon.cooldown.start = adjustedStart
-        if icon.cooldown.finish then
-            icon.cooldown.finish = adjustedStart + duration
-        end
-    elseif icon.charges < maxCharges then
+                                    if wasZero and icon.charges > 0 then
+                                        icon.cooldown:SetCooldown(0, 0)
+                                        icon.cooldown:SetHideCountdownNumbers(true)
+                                        icon.cooldown.noCooldownCount = true
                                         
+                                        local excessReduction = currentTime - newEndTime
+                                        local adjustedStart = currentTime - excessReduction
+                                        icon.cooldown:SetCooldown(adjustedStart, duration)
+                                        
+                                        icon.cooldown.start = adjustedStart
+                                        if icon.cooldown.finish then
+                                            icon.cooldown.finish = adjustedStart + duration
+                                        end
+                                    elseif icon.charges < maxCharges then
                                         local excessReduction = currentTime - newEndTime
                                         local adjustedStart = currentTime - excessReduction
                                         
                                         icon.cooldown:SetCooldown(adjustedStart, duration)
-                                        
                                         
                                         icon.cooldown.start = adjustedStart
                                         if icon.cooldown.finish then
                                             icon.cooldown.finish = adjustedStart + duration
                                         end
                                     else
-                                        
                                         icon.cooldown:SetCooldown(0, 0)
                                         if icon.cooldown.finish then
                                             icon.cooldown.finish = 0
@@ -2619,19 +2602,16 @@ if maxCharges and icon.charges ~= nil and icon.charges < maxCharges and newEndTi
                                        end
                                     end
                                 else
-                                    
                                     newEndTime = math.max(currentTime, newEndTime)
                                     local newRemainingTime = newEndTime - currentTime
                                     local newStartTime = currentTime - (duration - newRemainingTime)
                                     
                                     icon.cooldown:SetCooldown(newStartTime, duration)
                                     
-                                    
                                     icon.cooldown.start = newStartTime
                                     if icon.cooldown.finish then
                                         icon.cooldown.finish = newEndTime
                                     end
-                                    
                                 end
                             end
                         end
