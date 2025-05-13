@@ -165,10 +165,12 @@ local DEFAULTS = {
     readyGlow         = false,  
     showAfterCast     = false,
     hideChargedCooldownText = false,
+    reverseCooldown   = true,  
 
 
 }
 
+addon.DEFAULTS = DEFAULTS
 
 
 
@@ -1792,17 +1794,23 @@ function OmniBar_UpdateBorder(self, icon)
 
     local isUsed = IsIconUsed(icon)
 
-
+    icon.cooldown:SetReverse(self.settings.reverseCooldown)  
     if isUsed then
         icon:SetAlpha(self.settings.usedAlpha or 1)
+            local activeSwipeAlpha = math.min((self.settings.swipeAlpha or 0.65) + 0.3, 1.0)
+        icon.cooldown:SetSwipeColor(0, 0, 0, activeSwipeAlpha)
+    
     else
         icon:SetAlpha(self.settings.unusedAlpha or 1)
+        icon.cooldown:SetSwipeColor(0, 0, 0, self.settings.swipeAlpha or 0.65)
+
     end
 end
 
 function OmniBar_UpdateAllBorders(self)
     for i = 1, #self.active do
         OmniBar_UpdateBorder(self, self.active[i])
+
     end
 end
 
@@ -2148,31 +2156,31 @@ function OmniBar:AddSpellCast(event, sourceGUID, sourceName, sourceFlags, spellI
         targetSpecID = self.arenaSpecMap[sourceGUID]
     end
 
-     if spellID == 351338 and not targetSpecID and self.inArena then
-        -- For Quell specifically, try harder to find the correct arena unit and spec
-        for i = 1, MAX_ARENA_SIZE do
-            local unit = "arena" .. i
-            if UnitExists(unit) then
-                -- Check by GUID first
-                if UnitGUID(unit) == sourceGUID then
-                    local specID = GetArenaOpponentSpec(i)
-                    if specID and specID > 0 then
-                        targetSpecID = specID
-                        break
-                    end
-                end
+    --  if spellID == 351338 and not targetSpecID and self.inArena then
+    --     -- For Quell specifically, try harder to find the correct arena unit and spec
+    --     for i = 1, MAX_ARENA_SIZE do
+    --         local unit = "arena" .. i
+    --         if UnitExists(unit) then
+    --             -- Check by GUID first
+    --             if UnitGUID(unit) == sourceGUID then
+    --                 local specID = GetArenaOpponentSpec(i)
+    --                 if specID and specID > 0 then
+    --                     targetSpecID = specID
+    --                     break
+    --                 end
+    --             end
                 
-                -- Check by name if GUID didn't match
-                if not targetSpecID and sourceName and GetUnitName(unit, true) == sourceName then
-                    local specID = GetArenaOpponentSpec(i)
-                    if specID and specID > 0 then
-                        targetSpecID = specID
-                        break
-                    end
-                end
-            end
-        end
-    end
+    --             -- Check by name if GUID didn't match
+    --             if not targetSpecID and sourceName and GetUnitName(unit, true) == sourceName then
+    --                 local specID = GetArenaOpponentSpec(i)
+    --                 if specID and specID > 0 then
+    --                     targetSpecID = specID
+    --                     break
+    --                 end
+    --             end
+    --         end
+    --     end
+    -- end
 
     local charges = addon.Cooldowns[spellID].charges
 
@@ -2868,6 +2876,11 @@ function OmniBar_EnsureArenaIconsInitialized(self)
 end
 
 function OmniBar_LoadSettings(self)
+        for k, v in pairs(DEFAULTS) do
+        if self.settings[k] == nil then
+            self.settings[k] = v
+        end
+    end
     self.container:SetScale(self.settings.size / BASE_ICON_SIZE)
 
     OmniBar_LoadPosition(self)
@@ -3054,7 +3067,13 @@ end
 function OmniBar_CooldownFinish(self, force)
     local icon = self:GetParent()
     if icon.cooldown and icon.cooldown:GetCooldownTimes() > 0 and (not force) then return end
-
+ local bar = icon:GetParent():GetParent()
+    
+    -- Restore the original swipe alpha when cooldown finishes (with safety check)
+    if bar and bar.settings then
+        icon.cooldown:SetSwipeColor(0, 0, 0, bar.settings.swipeAlpha or 0.65)
+    end
+    
     local maxCharges = addon.Cooldowns[icon.spellID] and addon.Cooldowns[icon.spellID].charges
     if maxCharges and icon.charges ~= nil then
         if icon.charges < maxCharges then
@@ -3293,8 +3312,8 @@ function OmniBar_StartCooldown(self, icon, start)
     icon.cooldown:SetCooldown(start, icon.duration)
     icon.cooldown.finish = start + icon.duration
 
-      local activeSwipeAlpha = math.min((self.settings.swipeAlpha or 0.65) + 0.6, 1.0)
-    icon.cooldown:SetSwipeColor(0, 0, 0, activeSwipeAlpha)
+    --   local activeSwipeAlpha = math.min((self.settings.swipeAlpha or 0.65) + 0.6, 1.0)
+    -- icon.cooldown:SetSwipeColor(0, 0, 0, activeSwipeAlpha)
 
 
     icon.cooldown:SetScript("OnUpdate", nil)
@@ -3342,7 +3361,7 @@ function OmniBar_AddIcon(self, info)
                 icon = self.icons[i]
                 icon.specID = nil
                 
-                
+                icon.charges = nil  
                 icon.pendingHide = false
                 
                 
@@ -3485,7 +3504,12 @@ function OmniBar_UpdateIcons(self)
             self.icons[i].cooldown:SetHideCountdownNumbers(not self.settings.cooldownCount and true or false)
             self.icons[i].cooldown.noCooldownCount = (not self.settings.cooldownCount)
         end
-        self.icons[i].cooldown:SetSwipeColor(0, 0, 0, self.settings.swipeAlpha or 0.65)
+--        self.icons[i].cooldown:SetSwipeColor(0, 0, 0, self.settings.swipeAlpha or 0.65)
+  local start, duration = self.icons[i].cooldown:GetCooldownTimes()
+        if start == 0 or duration == 0 then
+            self.icons[i].cooldown:SetSwipeColor(0, 0, 0, self.settings.swipeAlpha or 0.65)
+        end
+        
 
         
         local borderStyle = self.settings.borderStyle or "pixel"

@@ -280,10 +280,21 @@ function OmniBar:AddBarToOptions(key, refresh)
 		type = "group",
 		order = self.index + 1,
 		childGroups = "tab",
+		-- get = function(info)
+		-- 	local option = info[#info]
+		-- 	return self.db.profile.bars[key][option]
+		-- end,
 		get = function(info)
-			local option = info[#info]
-			return self.db.profile.bars[key][option]
-		end,
+    local option = info[#info]
+    local value = self.db.profile.bars[key][option]
+    
+    -- If the value is nil, return the default
+    if value == nil and addon.DEFAULTS[option] ~= nil then
+        return addon.DEFAULTS[option]
+    end
+    
+    return value
+end,
 		set = function(info, state)
 			local option = info[#info]
 			self.db.profile.bars[key][option] = state
@@ -485,6 +496,13 @@ function OmniBar:AddBarToOptions(key, refresh)
     width = "normal",
     type = "toggle",
     order = 18.5,
+},
+reverseCooldown = {
+    name = L["Reverse Cooldown Swipe"],
+    desc = L["Make the cooldown swipe animation drain counter-clockwise instead of clockwise"],
+    width = "normal",
+    type = "toggle",
+    order = 18.6,
 },
 					lb2 = {
 						name = "",
