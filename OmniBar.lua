@@ -590,6 +590,41 @@ self.db.global.cooldownReduction[235219][45438] = {
     event = "SPELL_CAST_SUCCESS"
 }
 
+-- Charge on Leap
+if not self.db.global.cooldownReduction[100] then
+    self.db.global.cooldownReduction[100] = {}
+end
+if not self.db.global.cooldownReduction[100][6544] then
+    self.db.global.cooldownReduction[100][6544] = {
+        amount = 2,
+        event = "UNIT_SPELLCAST_SUCCEEDED"
+    }
+end
+
+addon.CooldownReduction[100] = addon.CooldownReduction[100] or {} 
+addon.CooldownReduction[100][6544] = {
+    amount = 2,
+    event = "UNIT_SPELLCAST_SUCCEEDED"
+}
+
+-- Leap on Charge
+if not self.db.global.cooldownReduction[52174] then
+    self.db.global.cooldownReduction[52174] = {}
+end
+if not self.db.global.cooldownReduction[52174][100] then
+    self.db.global.cooldownReduction[52174][100] = {
+        amount = 5,
+        event = "UNIT_SPELLCAST_SUCCEEDED"
+    }
+end
+
+addon.CooldownReduction[52174] = addon.CooldownReduction[52174] or {} 
+addon.CooldownReduction[52174][100] = {
+    amount = 5,
+    event = "UNIT_SPELLCAST_SUCCEEDED"
+}
+
+
     self:SetupOptions()
     self:SetupFlashAnimation()
 
@@ -2032,11 +2067,6 @@ function OmniBar:AddSpellCast(event, sourceGUID, sourceName, sourceFlags, spellI
     local isLocal = (not serverTime)
     serverTime = serverTime or GetServerTime()
 
-
-
-
-
-    
     if spellID == 195457 then
         
         local castingUnit
@@ -2156,6 +2186,15 @@ function OmniBar:AddSpellCast(event, sourceGUID, sourceName, sourceFlags, spellI
         targetSpecID = self.arenaSpecMap[sourceGUID]
     end
 
+    if not targetSpecID and self.inArena and self.arenaSpecMap then
+    for i = 1, MAX_ARENA_SIZE do
+        local unit = "arena" .. i
+        if UnitExists(unit) and UnitGUID(unit) == sourceGUID then
+            targetSpecID = self.arenaSpecMap[i]
+            break
+        end
+    end
+end
     --  if spellID == 351338 and not targetSpecID and self.inArena then
     --     -- For Quell specifically, try harder to find the correct arena unit and spec
     --     for i = 1, MAX_ARENA_SIZE do
