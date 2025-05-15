@@ -166,6 +166,7 @@ local DEFAULTS = {
     showAfterCast     = false,
     hideChargedCooldownText = false,
     reverseCooldown   = true,  
+    desaturateUsed    = false, 
 
 
 }
@@ -1886,6 +1887,12 @@ function OmniBar_UpdateBorder(self, icon)
 
     local isUsed = IsIconUsed(icon)
 
+
+    if self.settings.desaturateUsed then
+        icon.icon:SetDesaturated(isUsed)
+    else
+        icon.icon:SetDesaturated(false)
+    end
     icon.cooldown:SetReverse(self.settings.reverseCooldown)  
     if isUsed then
         icon:SetAlpha(self.settings.usedAlpha or 1)
@@ -3518,6 +3525,10 @@ end
 else
     icon.charges = nil
     icon.Count:SetText(nil)
+    if self.settings.hideChargedCooldownText then
+        icon.cooldown:SetHideCountdownNumbers(not self.settings.cooldownCount and true or false)
+        icon.cooldown.noCooldownCount = (not self.settings.cooldownCount)
+    end
 end
 
     if self.settings.names then
@@ -3589,6 +3600,12 @@ function OmniBar_UpdateIcons(self)
             self.icons[i].cooldown:SetSwipeColor(0, 0, 0, self.settings.swipeAlpha or 0.65)
         end
         
+        if self.settings.desaturateUsed then
+            local isUsed = IsIconUsed(self.icons[i])
+            self.icons[i].icon:SetDesaturated(isUsed)
+        else
+            self.icons[i].icon:SetDesaturated(false)
+        end
 
         
         local borderStyle = self.settings.borderStyle or "pixel"

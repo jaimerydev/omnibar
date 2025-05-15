@@ -504,6 +504,13 @@ reverseCooldown = {
     type = "toggle",
     order = 18.6,
 },
+desaturateUsed = {
+    name = L["Desaturate Icons on Cooldown"],
+    desc = L["Make icons grayscale while they are on cooldown"],
+    width = "normal",
+    type = "toggle",
+    order = 18.7,
+},
 					lb2 = {
 						name = "",
 						type = "description",
