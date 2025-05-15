@@ -670,6 +670,8 @@ function OmniBar:ARENA_PREP_OPPONENT_SPECIALIZATIONS()
 
     self.arenaPrepped = true
     self.warriorSpecMap = {} 
+        self.arenaSpecMap = {}  -- ADD THIS to create it on self
+
 
     for _, bar in ipairs(self.bars) do
         if not bar.disabled then
@@ -688,6 +690,9 @@ function OmniBar:ARENA_PREP_OPPONENT_SPECIALIZATIONS()
                     local _, _, _, _, _, class = GetSpecializationInfoByID(specID)
                     if class then
                         bar.arenaSpecMap[i] = specID
+                        self.arenaSpecMap[i] = specID  -- ADD THIS to also store on self
+
+                      
 
                         if bar.settings.showUnused then
                             bar.detected[i] = class
@@ -770,6 +775,17 @@ function OmniBar:ARENA_OPPONENT_UPDATE(event, unit, updateType)
         end
         wipe(self.guardianSpiritCasts)
         return
+    end
+
+     if updateType == "seen" then
+        local arenaIndex = tonumber(unit:match("arena(%d+)"))
+        if arenaIndex and self.arenaSpecMap and self.arenaSpecMap[arenaIndex] then
+            local guid = UnitGUID(unit)
+            if guid then
+                self.arenaGUIDMap = self.arenaGUIDMap or {}
+                self.arenaGUIDMap[guid] = self.arenaSpecMap[arenaIndex]
+            end
+        end
     end
     
 end
@@ -1112,11 +1128,38 @@ function OmniBar_AddOpponentIcons(bar, arenaIndex, specID, class)
     OmniBar_Position(bar)
 end
 
+-- function OmniBar:AddCustomSpells()
+--     for k, v in pairs(self.BackupCooldowns) do
+--         addon.Cooldowns[k] = self:CopyCooldown(v)
+--     end
+
+
+--     for k, v in pairs(self.db.global.cooldowns) do
+--         local name, _, icon
+--         if C_Spell and C_Spell.GetSpellInfo then
+--             local spellInfo = C_Spell.GetSpellInfo(k)
+--             name = spellInfo and spellInfo.name
+--             icon = spellInfo and spellInfo.iconID
+--         else
+--             name, _, icon = GetSpellInfo(k)
+--         end
+--         if name then
+--             if addon.Cooldowns[k] and (not addon.Cooldowns[k].custom) and (not self.BackupCooldowns[k]) then
+--                 self.BackupCooldowns[k] = self:CopyCooldown(addon.Cooldowns[k])
+--             end
+--             addon.Cooldowns[k] = v
+--             addon.Cooldowns[k].icon = addon.Cooldowns[k].icon or icon
+--             addon.Cooldowns[k].name = name
+--             if SPELL_ID_BY_NAME then SPELL_ID_BY_NAME[name] = k end
+--         else
+--             self.db.global.cooldowns[k] = nil
+--         end
+--     end
+-- end
 function OmniBar:AddCustomSpells()
     for k, v in pairs(self.BackupCooldowns) do
         addon.Cooldowns[k] = self:CopyCooldown(v)
     end
-
 
     for k, v in pairs(self.db.global.cooldowns) do
         local name, _, icon
@@ -1138,6 +1181,20 @@ function OmniBar:AddCustomSpells()
         else
             self.db.global.cooldowns[k] = nil
         end
+    end
+    
+  if self.inArena then
+        -- Just update durations on existing icons
+        for _, bar in ipairs(self.bars) do
+            for _, icon in ipairs(bar.active) do
+                if icon.spellID and addon.Cooldowns[icon.spellID] then
+                    -- Update the duration with new custom value
+                    icon.duration = GetCooldownDuration(addon.Cooldowns[icon.spellID], icon.specID)
+                end
+            end
+        end
+    else
+        self:Refresh(true)
     end
 end
 
@@ -2052,6 +2109,8 @@ end
 
 local function GetCooldownDuration(cooldown, specID)
     if (not cooldown.duration) then return end
+
+    
     if type(cooldown.duration) == "table" then
         if specID and cooldown.duration[specID] then
             return cooldown.duration[specID]
@@ -2178,49 +2237,28 @@ function OmniBar:AddSpellCast(event, sourceGUID, sourceName, sourceFlags, spellI
     local targetSpecID
 
 
-    if info and info.specID then
-        targetSpecID = info.specID
-    elseif name and self.specs[name] then
-        targetSpecID = self.specs[name]
-    elseif type(sourceGUID) == "number" and self.arenaSpecMap and self.arenaSpecMap[sourceGUID] then
-        targetSpecID = self.arenaSpecMap[sourceGUID]
-    end
-
-    if not targetSpecID and self.inArena and self.arenaSpecMap then
-    for i = 1, MAX_ARENA_SIZE do
-        local unit = "arena" .. i
-        if UnitExists(unit) and UnitGUID(unit) == sourceGUID then
-            targetSpecID = self.arenaSpecMap[i]
-            break
-        end
-    end
+-- Check info first
+if info and info.specID then
+    targetSpecID = info.specID
 end
-    --  if spellID == 351338 and not targetSpecID and self.inArena then
-    --     -- For Quell specifically, try harder to find the correct arena unit and spec
-    --     for i = 1, MAX_ARENA_SIZE do
-    --         local unit = "arena" .. i
-    --         if UnitExists(unit) then
-    --             -- Check by GUID first
-    --             if UnitGUID(unit) == sourceGUID then
-    --                 local specID = GetArenaOpponentSpec(i)
-    --                 if specID and specID > 0 then
-    --                     targetSpecID = specID
-    --                     break
-    --                 end
-    --             end
-                
-    --             -- Check by name if GUID didn't match
-    --             if not targetSpecID and sourceName and GetUnitName(unit, true) == sourceName then
-    --                 local specID = GetArenaOpponentSpec(i)
-    --                 if specID and specID > 0 then
-    --                     targetSpecID = specID
-    --                     break
-    --                 end
-    --             end
-    --         end
-    --     end
-    -- end
 
+-- If still no spec, check name
+if not targetSpecID and name and self.specs[name] then
+    targetSpecID = self.specs[name]
+end
+
+-- If still no spec, check arena index
+if not targetSpecID and type(sourceGUID) == "number" and self.arenaSpecMap and self.arenaSpecMap[sourceGUID] then
+    targetSpecID = self.arenaSpecMap[sourceGUID]
+end
+
+-- If still no spec, check GUID map
+if not targetSpecID and sourceGUID and self.arenaGUIDMap and self.arenaGUIDMap[sourceGUID] then
+    targetSpecID = self.arenaGUIDMap[sourceGUID]
+end
+
+    
+ 
     local charges = addon.Cooldowns[spellID].charges
 
     local duration = customDuration or GetCooldownDuration(addon.Cooldowns[spellID], targetSpecID)
@@ -2264,6 +2302,8 @@ end
         spellID = spellID,
         spellName = GetSpellName(spellID),
         timestamp = now,
+        specID = targetSpecID,
+
     }
 
     self:SendMessage("OmniBar_SpellCast", name, spellID)
