@@ -147,3 +147,5 @@ L["Hide cooldown text when spell charges are available (charges > 0). Text only 
 L["Hide Cooldown Text Between Charges"] = true
 L["Make the cooldown swipe animation drain counter-clockwise instead of clockwise"] = true
 L["Reverse Cooldown Swipe"] = true
+L["Make icons grayscale while they are on cooldown"]    = true
+L["Desaturate Icons on Cooldown"]   = true
