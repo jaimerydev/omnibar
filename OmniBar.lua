@@ -642,31 +642,27 @@ function OmniBar:HasBuff(unit, buffName, filter)
     return _ ~= nil
 end
 
-function OmniBar:PLAYER_ENTERING_WORLD()
+function OmniBar:PLAYER_ENTERING_WORLD(event, isInitialLogin, isReloadingUi)
     local _, instanceType = IsInInstance()
     self.inArena = (instanceType == "arena")
     ARENA_STATE.inArena = self.inArena
 
-    
     for destGUID, castInfo in pairs(self.guardianSpiritCasts) do
         if castInfo.expiryTimer then
             castInfo.expiryTimer:Cancel()
         end
     end
-
     wipe(self.guardianSpiritCasts)
-
 
     for _, bar in ipairs(self.bars) do
         if not bar.disabled then
-               if bar.castHistory then
-            wipe(bar.castHistory)
-        end
+            if bar.castHistory then
+                wipe(bar.castHistory)
+            end
             OmniBar_OnEvent(bar, "PLAYER_ENTERING_WORLD")
         end
     end
 end
-
 function OmniBar:ARENA_PREP_OPPONENT_SPECIALIZATIONS()
 
     self.arenaPrepped = true
@@ -826,6 +822,11 @@ function OmniBar:SendVersion(distribution)
     -- self:SendCommMessage("OmniBarVersion", self.version.string, distribution or GetDefaultCommChannel())
 end
 
+-- DEBUG: Let's see why my OnEnable changes aren't working at all
+
+-- ============================================================================
+-- Add this debug version of OnEnable to see what's happening:
+-- ============================================================================
 function OmniBar:OnEnable()
     wipe(self.specs)
     wipe(self.spellCasts)
@@ -842,7 +843,6 @@ function OmniBar:OnEnable()
         self.index = self.index + 1
     end
 
-
     if self.index == 1 then
         self:Initialize("OmniBar1", "OmniBar")
         self.index = 2
@@ -852,9 +852,7 @@ function OmniBar:OnEnable()
         self:AddBarToOptions(key)
     end
 
-
     self:GetSpecs()
-
 
     C_Timer.After(0.1, function()
         self:Refresh(true)
@@ -1190,7 +1188,8 @@ function OmniBar:AddCustomSpells()
             for _, icon in ipairs(bar.active) do
                 if icon.spellID and addon.Cooldowns[icon.spellID] then
                     -- Update the duration with new custom value
-                    icon.duration = GetCooldownDuration(addon.Cooldowns[icon.spellID], icon.specID)
+                   icon.duration = self:GetCooldownDuration(addon.Cooldowns[icon.spellID], icon.specID)
+
                 end
             end
         end
@@ -2114,9 +2113,8 @@ local function IsSourceHostile(sourceFlags)
     return band == COMBATLOG_OBJECT_REACTION_HOSTILE
 end
 
-local function GetCooldownDuration(cooldown, specID)
+function OmniBar:GetCooldownDuration(cooldown, specID)
     if (not cooldown.duration) then return end
-
     
     if type(cooldown.duration) == "table" then
         if specID and cooldown.duration[specID] then
@@ -2128,7 +2126,6 @@ local function GetCooldownDuration(cooldown, specID)
         return cooldown.duration
     end
 end
-
 function OmniBar:AddSpellCast(event, sourceGUID, sourceName, sourceFlags, spellID, serverTime, customDuration)
     local isLocal = (not serverTime)
     serverTime = serverTime or GetServerTime()
@@ -2268,7 +2265,7 @@ end
  
     local charges = addon.Cooldowns[spellID].charges
 
-    local duration = customDuration or GetCooldownDuration(addon.Cooldowns[spellID], targetSpecID)
+    local duration = customDuration or self:GetCooldownDuration(addon.Cooldowns[spellID], targetSpecID)
 
 
     spellID = addon.Cooldowns[spellID].parent or spellID
@@ -2291,7 +2288,7 @@ end
 
 
     if (not duration) then
-        duration = GetCooldownDuration(addon.Cooldowns[spellID], targetSpecID)
+        duration = self:GetCooldownDuration(addon.Cooldowns[spellID], targetSpecID)
     end
 
 
@@ -2868,12 +2865,19 @@ function OmniBar:ReduceCooldown(casterGUID, seconds, targetSpellID)
 end
 
 function OmniBar_OnEvent(self, event, ...)
-    if event == "PLAYER_ENTERING_WORLD" then
+   if event == "PLAYER_ENTERING_WORLD" then
+        local isInitialLogin, isReloadingUi = ...
         local _, instanceType = IsInInstance()
+        
+        -- Skip processing if reloading in arena
+        if isReloadingUi and instanceType == "arena" then
+            return
+        end
+        
         self.inArena = (instanceType == "arena")
         ARENA_STATE.inArena = self.inArena
-
         OmniBar_SetZone(self, true)
+
     elseif event == "ZONE_CHANGED_NEW_AREA" then
         local _, instanceType = IsInInstance()
         self.inArena = (instanceType == "arena")
@@ -3467,7 +3471,7 @@ function OmniBar_AddIcon(self, info)
     icon.icon:SetTexture(addon.Cooldowns[info.spellID].icon)
     icon.spellID = info.spellID
     icon.timestamp = info.test and GetTime() or info.timestamp
-    icon.duration = info.test and math.random(5, 30) or GetCooldownDuration(addon.Cooldowns[info.spellID], icon.specID)
+    icon.duration = info.test and math.random(5, 30) or OmniBar:GetCooldownDuration(addon.Cooldowns[info.spellID], icon.specID)
     icon.added = GetTime()
 
     local isArena = IsInInstance() and select(1, GetInstanceInfo()) == "arena"
