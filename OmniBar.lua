@@ -200,6 +200,26 @@ function OmniBar:OnInitialize()
         inPrep = false
     }
 
+    self.evokerRateBuffs = {}
+    self.evokerUpdateFrame = CreateFrame("Frame")
+    self.evokerUpdateFrame:Hide()
+    self.evokerUpdateElapsed = 0
+    self.lastEvokerUpdate = GetTime()
+
+
+    self.evokerUpdateFrame:SetScript("OnUpdate", function(_, elapsed)
+        self.evokerUpdateElapsed = self.evokerUpdateElapsed + elapsed
+        if self.evokerUpdateElapsed >= 0.1 then -- Update every 0.1 seconds for smooth reduction
+            local currentTime = GetTime()
+            local deltaTime = currentTime - self.lastEvokerUpdate
+            self.lastEvokerUpdate = currentTime
+            self.evokerUpdateElapsed = 0
+
+            self:ProcessEvokerRateReduction(deltaTime)
+        end
+    end)
+    self:RegisterEvent("UNIT_AURA")
+
     self.recentCDREvents = {}
     self.lastCDRCleanup = GetTime()
     self.lastFullCDRWipe = GetTime() -- Add this line
@@ -3800,6 +3820,207 @@ function OmniBar:IsEmpoweredSpell(unit)
     end
 
     return false
+end
+
+function OmniBar:UNIT_AURA(event, unit, updateInfo)
+    if not unit then return end
+
+    -- Only track player, party, raid, and arena units
+    local isTrackedUnit = false
+    if UnitIsUnit(unit, "player") then
+        isTrackedUnit = true
+    elseif unit:match("^party%d+$") or unit:match("^raid%d+$") or unit:match("^arena%d+$") then
+        isTrackedUnit = true
+    end
+
+    if not isTrackedUnit then return end
+
+    local unitGUID = UnitGUID(unit)
+    if not unitGUID then return end
+
+    -- Check for our specific buffs using AuraUtil if available
+    local hasTemporalBurst = false
+    local hasFlowState = false
+    local temporalBurstTimeLeft = 0
+
+    -- Try using AuraUtil.FindAuraBySpellID if it exists
+    if AuraUtil and AuraUtil.FindAuraBySpellID then
+        local temporalBurstData = AuraUtil.FindAuraBySpellID(431698, unit, "HELPFUL")
+        if temporalBurstData then
+            hasTemporalBurst = true
+            temporalBurstTimeLeft = temporalBurstData.expirationTime - GetTime()
+        end
+
+        local flowStateData = AuraUtil.FindAuraBySpellID(390148, unit, "HELPFUL")
+        if flowStateData then
+            hasFlowState = true
+        end
+    else
+        -- Fallback to UnitBuff iteration
+        for i = 1, 40 do
+            local name, icon, count, debuffType, duration, expirationTime, source,
+            isStealable, nameplateShowPersonal, spellId = UnitBuff(unit, i)
+
+            if not name then break end
+
+            if spellId == 431698 then -- Temporal Burst
+                hasTemporalBurst = true
+                temporalBurstTimeLeft = expirationTime - GetTime()
+            elseif spellId == 390148 then -- Flow State
+                hasFlowState = true
+            end
+        end
+    end
+
+    -- Rest of the function remains the same...
+    local wasActive = self.evokerRateBuffs[unitGUID] ~= nil
+
+    if hasTemporalBurst or hasFlowState then
+        self.evokerRateBuffs[unitGUID] = {
+            hasTemporalBurst = hasTemporalBurst,
+            hasFlowState = hasFlowState,
+            temporalBurstTimeLeft = temporalBurstTimeLeft,
+            lastUpdate = GetTime()
+        }
+
+        if not wasActive and not self.evokerUpdateFrame:IsShown() then
+            self.lastEvokerUpdate = GetTime()
+            self.evokerUpdateFrame:Show()
+        end
+    else
+        self.evokerRateBuffs[unitGUID] = nil
+
+        if wasActive and not next(self.evokerRateBuffs) then
+            self.evokerUpdateFrame:Hide()
+        end
+    end
+end
+
+function OmniBar:ProcessEvokerRateReduction(deltaTime)
+    local hasActiveBuffs = false
+
+    for unitGUID, buffInfo in pairs(self.evokerRateBuffs) do
+        hasActiveBuffs = true
+        local reductionRate = 1.0
+
+        -- Calculate Flow State reduction (flat 10%)
+        if buffInfo.hasFlowState then
+            reductionRate = reductionRate + 0.1
+        end
+
+        -- Calculate Temporal Burst reduction (scaling)
+        if buffInfo.hasTemporalBurst then
+            -- Update the time left
+            buffInfo.temporalBurstTimeLeft = buffInfo.temporalBurstTimeLeft - deltaTime
+
+            if buffInfo.temporalBurstTimeLeft > 0 then
+                -- Convert remaining time to percentage (capped at 30 seconds = 30%)
+                local remainingSeconds = math.min(30, math.max(1, buffInfo.temporalBurstTimeLeft))
+                local temporalBurstPercent = remainingSeconds / 100 -- 30 seconds = 0.30, 1 second = 0.01
+                reductionRate = reductionRate + temporalBurstPercent
+            else
+                buffInfo.hasTemporalBurst = false
+            end
+        end
+
+        -- Apply the reduction to all relevant cooldowns
+        if reductionRate > 1.0 then
+            self:ApplyEvokerRateReduction(unitGUID, deltaTime, reductionRate)
+        end
+    end
+
+    -- Clean up and stop frame if no active buffs
+    if not hasActiveBuffs then
+        wipe(self.evokerRateBuffs)
+        self.evokerUpdateFrame:Hide()
+    end
+end
+
+function OmniBar:ApplyEvokerRateReduction(unitGUID, deltaTime, reductionRate)
+    local reductionAmount = deltaTime * (reductionRate - 1.0) -- Only the bonus reduction
+
+    for _, bar in ipairs(self.bars) do
+        if not bar.disabled then
+            for _, icon in ipairs(bar.active) do
+                if icon and icon.cooldown then
+                    -- Check if this icon belongs to the unit with the buff
+                    local iconMatches = false
+                    if icon.sourceGUID == unitGUID then
+                        iconMatches = true
+                    elseif type(icon.sourceGUID) == "number" then
+                        -- Handle arena units
+                        local arenaUnit = "arena" .. icon.sourceGUID
+                        if UnitExists(arenaUnit) and UnitGUID(arenaUnit) == unitGUID then
+                            iconMatches = true
+                        end
+                    elseif icon.sourceName then
+                        -- Check by name as fallback
+                        for unit in pairs({ player = true, target = true, focus = true }) do
+                            if UnitExists(unit) and UnitGUID(unit) == unitGUID and
+                                GetUnitName(unit, true) == icon.sourceName then
+                                iconMatches = true
+                                break
+                            end
+                        end
+                    end
+
+                    if iconMatches then
+                        -- Apply reduction to active cooldowns
+                        local start, duration = icon.cooldown:GetCooldownTimes()
+                        if start > 0 and duration > 0 then
+                            start = start / 1000
+                            duration = duration / 1000
+
+                            local currentTime = GetTime()
+                            local endTime = start + duration
+                            local newEndTime = endTime - reductionAmount
+
+                            -- Handle charges
+                            local maxCharges = addon.Cooldowns[icon.spellID] and addon.Cooldowns[icon.spellID].charges
+                            if maxCharges and icon.charges ~= nil and icon.charges < maxCharges and newEndTime <= currentTime then
+                                -- Charge completed
+                                local wasZero = (icon.charges == 0)
+                                icon.charges = icon.charges + 1
+                                icon.Count:SetText(icon.charges > 0 and icon.charges or "")
+                                OmniBar_UpdateBorder(bar, icon)
+
+                                if icon.charges < maxCharges then
+                                    -- Start next charge
+                                    local excessReduction = currentTime - newEndTime
+                                    local adjustedStart = currentTime - excessReduction
+                                    icon.cooldown:SetCooldown(adjustedStart, duration)
+                                    icon.cooldown.start = adjustedStart
+                                    icon.cooldown.finish = adjustedStart + duration
+                                else
+                                    -- All charges ready
+                                    icon.cooldown:SetCooldown(0, 0)
+                                    icon.cooldown.finish = 0
+
+                                    if bar.settings.showUnused and bar.settings.readyGlow ~= false then
+                                        OmniBar_ShowActivationGlow(icon)
+                                        C_Timer.After(1, function()
+                                            if icon then
+                                                OmniBar_HideActivationGlow(icon)
+                                            end
+                                        end)
+                                    end
+                                end
+                            else
+                                -- Normal cooldown reduction
+                                newEndTime = math.max(currentTime, newEndTime)
+                                local newRemainingTime = newEndTime - currentTime
+                                local newStartTime = currentTime - (duration - newRemainingTime)
+
+                                icon.cooldown:SetCooldown(newStartTime, duration)
+                                icon.cooldown.start = newStartTime
+                                icon.cooldown.finish = newEndTime
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
 end
 
 SLASH_OmniBar1 = "/ob"
