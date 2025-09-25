@@ -748,14 +748,14 @@ addon.Cooldowns = {
 
 	-- Preservation
 
-	[355936] = { duration = 24, class = "EVOKER", specID = { 1468 } },            -- Dream Breath
-	[363534] = { duration = 180, class = "EVOKER", specID = { 1468 }, charges = 2 }, -- Rewind
-	[367226] = { duration = 24, class = "EVOKER", specID = { 1468 } },            -- Spiritbloom
-	[357170] = { duration = 60, class = "EVOKER", specID = { 1468 } },            -- Time Dilation
-	[370960] = { duration = 180, class = "EVOKER", specID = { 1468 } },           -- Emerald Communion
-	[359816] = { duration = 120, class = "EVOKER", specID = { 1468 } },           -- Dream Flight
-	[370537] = { duration = 90, class = "EVOKER", specID = { 1468 } },            -- Stasis
-	[360823] = { duration = 8, class = "EVOKER", specID = { 1468 } },             -- Naturalize
+	[355936] = { duration = 24, class = "EVOKER", specID = { 1468 } }, -- Dream Breath
+	[363534] = { duration = 240, class = "EVOKER", specID = { 1468 } }, -- Rewind
+	[367226] = { duration = 24, class = "EVOKER", specID = { 1468 } }, -- Spiritbloom
+	[357170] = { duration = 60, class = "EVOKER", specID = { 1468 } }, -- Time Dilation
+	[370960] = { duration = 180, class = "EVOKER", specID = { 1468 } }, -- Emerald Communion
+	[359816] = { duration = 120, class = "EVOKER", specID = { 1468 } }, -- Dream Flight
+	[370537] = { duration = 90, class = "EVOKER", specID = { 1468 } }, -- Stasis
+	[360823] = { duration = 8, class = "EVOKER", specID = { 1468 } }, -- Naturalize
 
 	-- Augmentation
 

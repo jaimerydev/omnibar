@@ -647,6 +647,7 @@ function OmniBar:OnInitialize()
     }
 
 
+
     self:SetupOptions()
     self:SetupFlashAnimation()
 
@@ -2443,7 +2444,7 @@ function OmniBar:UNIT_SPELLCAST_EMPOWER_STOP(event, unit, _, spellID, successful
 end
 
 function OmniBar:COMBAT_LOG_EVENT_UNFILTERED()
-    local timestamp, subevent, _, sourceGUID, sourceName, sourceFlags, _, destGUID, destName, destFlags, destRaidFlags, spellID, spellName =
+    local timestamp, subevent, _, sourceGUID, sourceName, sourceFlags, _, destGUID, destName, destFlags, destRaidFlags, spellID, spellName, spellSchool, amount, overkill, school, resisted, blocked, absorbed, critical =
         CombatLogGetCurrentEventInfo()
 
     local procIDs = {
@@ -2461,7 +2462,7 @@ function OmniBar:COMBAT_LOG_EVENT_UNFILTERED()
         [382445] = true,
     }
 
-
+    -- Guardian Spirit logic
     local GUARDIAN_SPIRIT_ID = 47788
     local GUARDIAN_SPIRIT_HEAL_ID = 48153
 
@@ -2476,7 +2477,6 @@ function OmniBar:COMBAT_LOG_EVENT_UNFILTERED()
         if foundProc then
             return
         end
-
 
         if spellID == GUARDIAN_SPIRIT_ID then
             self.guardianSpiritCasts[destGUID] = {
@@ -2498,19 +2498,35 @@ function OmniBar:COMBAT_LOG_EVENT_UNFILTERED()
         end
     end
 
-
     if subevent == "SPELL_HEAL" and spellID == GUARDIAN_SPIRIT_HEAL_ID then
         if self.guardianSpiritCasts[destGUID] then
             self.guardianSpiritCasts[destGUID].healed = true
         end
     end
 
-
+    -- Basic spell cast processing
     if (subevent == "SPELL_CAST_SUCCESS" or subevent == "SPELL_AURA_APPLIED" or subevent == "SPELL_INTERRUPT") then
         if spellID == 0 and SPELL_ID_BY_NAME then spellID = SPELL_ID_BY_NAME[spellName] end
         self:AddSpellCast(subevent, sourceGUID, sourceName, sourceFlags, spellID)
     end
 
+    -- NEW: Handle fire spell damage for Combustion reduction
+    -- Handle fire spell damage for Combustion reduction
+    if subevent == "SPELL_DAMAGE" then
+        local FIRE_SPELLS = {
+            [133] = true,    -- Fireball
+            [11366] = true,  -- Pyroblast
+            [108853] = true, -- Fire Blast
+            [2948] = true,   -- Scorch
+            [257542] = true  -- Phoenix Flames
+        }
+
+        if FIRE_SPELLS[spellID] then
+            self:ProcessAllCombustionReduction(spellID, sourceGUID, sourceName, critical)
+        end
+    end
+
+    -- Channeled spells logic
     if CHANNELED_SPELLS[spellID] then
         if subevent == "SPELL_CAST_SUCCESS" then
             self.activeChannels[sourceGUID] = {
@@ -2531,6 +2547,7 @@ function OmniBar:COMBAT_LOG_EVENT_UNFILTERED()
         end
     end
 
+    -- Cooldown reduction processing
     if subevent == "SPELL_INTERRUPT" or
         subevent == "SPELL_CAST_SUCCESS" or
         (subevent == "SPELL_DAMAGE" and not CHANNELED_SPELLS_CAST_ONLY[spellID]) or
@@ -2626,6 +2643,86 @@ function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, event
         end
     end
 
+
+    local COMBUSTION_ID = 190319
+    local FIRE_SPELLS = {
+        [133] = true,    -- Fireball
+        [11366] = true,  -- Pyroblast
+        [108853] = true, -- Fire Blast
+        [2948] = true,   -- Scorch
+        [257541] = true  -- Phoenix Flames
+    }
+
+    if FIRE_SPELLS[spellID] and castingUnit then
+        local hasCombustion = self:HasBuff(castingUnit, "Combustion")
+        local reductionAmount = 0
+
+        -- Base reduction for critical strikes
+        if eventType == "SPELL_CRIT" then
+            reductionAmount = reductionAmount + 1
+        end
+
+        -- Additional reduction when Combustion is active (Unleashed Inferno)
+        if hasCombustion then
+            reductionAmount = reductionAmount + 1.25
+        end
+
+        -- Apply the reduction if any
+        if reductionAmount > 0 then
+            for _, bar in ipairs(self.bars) do
+                for _, icon in ipairs(bar.active) do
+                    if icon.spellID == COMBUSTION_ID then
+                        -- Check if this icon belongs to the same player
+                        local samePlayer = false
+                        local isEnemyTracking = (bar.settings.trackUnit == "ENEMY")
+
+                        if isEnemyTracking then
+                            if sourceGUID and icon.sourceGUID then
+                                samePlayer = (sourceGUID == icon.sourceGUID)
+
+                                if not samePlayer and type(icon.sourceGUID) == "number" then
+                                    local arenaUnit = "arena" .. icon.sourceGUID
+                                    if UnitExists(arenaUnit) and UnitGUID(arenaUnit) == sourceGUID then
+                                        samePlayer = true
+                                    end
+                                end
+                            end
+
+                            if not samePlayer and sourceName and icon.sourceName then
+                                samePlayer = (sourceName == icon.sourceName)
+                            end
+                        else
+                            if sourceGUID and icon.sourceGUID then
+                                samePlayer = (sourceGUID == icon.sourceGUID)
+                            elseif sourceName and icon.sourceName then
+                                samePlayer = (sourceName == icon.sourceName)
+                            end
+                        end
+
+                        if samePlayer then
+                            local start, duration = icon.cooldown:GetCooldownTimes()
+                            if start > 0 and duration > 0 then
+                                start = start / 1000
+                                duration = duration / 1000
+
+                                local currentTime = GetTime()
+                                local endTime = start + duration
+                                local newEndTime = endTime - reductionAmount
+
+                                newEndTime = math.max(currentTime, newEndTime)
+                                local newRemainingTime = newEndTime - currentTime
+                                local newStartTime = currentTime - (duration - newRemainingTime)
+
+                                icon.cooldown:SetCooldown(newStartTime, duration)
+                                icon.cooldown.start = newStartTime
+                                icon.cooldown.finish = newEndTime
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
     -- Process the cooldown reduction
     for _, bar in ipairs(self.bars) do
         local isEnemyTracking = (bar.settings.trackUnit == "ENEMY")
@@ -2782,6 +2879,128 @@ function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, event
                                     end
                                 end
                             end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+function OmniBar:ProcessAllCombustionReduction(spellID, sourceGUID, sourceName, isCritical)
+    local COMBUSTION_ID = 190319
+    local PHOENIX_FLAMES_ID = 257542
+
+    -- Special duplicate prevention for Phoenix Flames (it can fire multiple events)
+    if spellID == PHOENIX_FLAMES_ID then
+        local currentTime = GetTime()
+        local eventKey = sourceGUID .. "_" .. PHOENIX_FLAMES_ID .. "_" .. math.floor(currentTime * 10) -- 100ms precision
+
+        self.recentPhoenixEvents = self.recentPhoenixEvents or {}
+
+        if self.recentPhoenixEvents[eventKey] then
+            return -- Skip duplicate Phoenix Flames event
+        end
+        self.recentPhoenixEvents[eventKey] = currentTime
+
+        -- Clean up old Phoenix events
+        if not self.lastPhoenixCleanup or (currentTime - self.lastPhoenixCleanup) > 2 then
+            self.lastPhoenixCleanup = currentTime
+            for key, timestamp in pairs(self.recentPhoenixEvents) do
+                if (currentTime - timestamp) > 0.2 then -- Keep events for 200ms
+                    self.recentPhoenixEvents[key] = nil
+                end
+            end
+        end
+    end
+
+    -- Find the casting unit
+    local castingUnit
+    for unit in pairs({ player = true, target = true, focus = true }) do
+        if UnitExists(unit) and UnitGUID(unit) == sourceGUID then
+            castingUnit = unit
+            break
+        end
+    end
+
+    if not castingUnit then
+        for i = 1, 5 do
+            local unit = "arena" .. i
+            if UnitExists(unit) and UnitGUID(unit) == sourceGUID then
+                castingUnit = unit
+                break
+            end
+        end
+    end
+
+    if not castingUnit and IsInGroup() then
+        local prefix = IsInRaid() and "raid" or "party"
+        local count = IsInRaid() and GetNumGroupMembers() or GetNumGroupMembers() - 1
+        for i = 1, count do
+            local unit = prefix .. i
+            if UnitExists(unit) and UnitGUID(unit) == sourceGUID then
+                castingUnit = unit
+                break
+            end
+        end
+    end
+
+    if not castingUnit then return end
+
+    -- Check if Combustion is active
+    local hasCombustion = self:HasBuff(castingUnit, "Combustion")
+
+    -- Simple logic for reduction amount
+    local reductionAmount = 0
+
+    if isCritical and hasCombustion then
+        reductionAmount = 2.25 -- Crit + Combustion
+    elseif isCritical then
+        reductionAmount = 1    -- Crit only
+    elseif hasCombustion then
+        reductionAmount = 1.25 -- Combustion only
+    else
+        return                 -- No reduction (non-crit, no Combustion)
+    end
+
+    -- Apply the reduction to Combustion icons
+    for _, bar in ipairs(self.bars) do
+        if not bar.disabled then
+            for _, icon in ipairs(bar.active) do
+                if icon.spellID == COMBUSTION_ID then
+                    -- Check if this icon belongs to the same player
+                    local samePlayer = false
+
+                    if sourceGUID and icon.sourceGUID then
+                        samePlayer = (sourceGUID == icon.sourceGUID)
+
+                        -- Handle arena units
+                        if not samePlayer and type(icon.sourceGUID) == "number" then
+                            local arenaUnit = "arena" .. icon.sourceGUID
+                            if UnitExists(arenaUnit) and UnitGUID(arenaUnit) == sourceGUID then
+                                samePlayer = true
+                            end
+                        end
+                    elseif sourceName and icon.sourceName then
+                        samePlayer = (sourceName == icon.sourceName)
+                    end
+
+                    if samePlayer then
+                        local start, duration = icon.cooldown:GetCooldownTimes()
+                        if start > 0 and duration > 0 then
+                            start = start / 1000
+                            duration = duration / 1000
+
+                            local currentTime = GetTime()
+                            local endTime = start + duration
+                            local newEndTime = math.max(currentTime, endTime - reductionAmount)
+
+                            local newRemainingTime = newEndTime - currentTime
+                            local newStartTime = currentTime - (duration - newRemainingTime)
+
+                            icon.cooldown:SetCooldown(newStartTime, duration)
+                            icon.cooldown.start = newStartTime
+                            icon.cooldown.finish = newEndTime
                         end
                     end
                 end
@@ -3822,10 +4041,83 @@ function OmniBar:IsEmpoweredSpell(unit)
     return false
 end
 
+-- function OmniBar:UNIT_AURA(event, unit, updateInfo)
+--     if not unit then return end
+
+--     -- Only track player, party, raid, and arena units
+--     local isTrackedUnit = false
+--     if UnitIsUnit(unit, "player") then
+--         isTrackedUnit = true
+--     elseif unit:match("^party%d+$") or unit:match("^raid%d+$") or unit:match("^arena%d+$") then
+--         isTrackedUnit = true
+--     end
+
+--     if not isTrackedUnit then return end
+
+--     local unitGUID = UnitGUID(unit)
+--     if not unitGUID then return end
+
+--     -- Check for our specific buffs using AuraUtil if available
+--     local hasTemporalBurst = false
+--     local hasFlowState = false
+--     local temporalBurstTimeLeft = 0
+
+--     -- Try using AuraUtil.FindAuraBySpellID if it exists
+--     if AuraUtil and AuraUtil.FindAuraBySpellID then
+--         local temporalBurstData = AuraUtil.FindAuraBySpellID(431698, unit, "HELPFUL")
+--         if temporalBurstData then
+--             hasTemporalBurst = true
+--             temporalBurstTimeLeft = temporalBurstData.expirationTime - GetTime()
+--         end
+
+--         local flowStateData = AuraUtil.FindAuraBySpellID(390148, unit, "HELPFUL")
+--         if flowStateData then
+--             hasFlowState = true
+--         end
+--     else
+--         -- -- Fallback to UnitBuff iteration
+--         -- for i = 1, 40 do
+--         --     local name, icon, count, debuffType, duration, expirationTime, source,
+--         --     isStealable, nameplateShowPersonal, spellId = UnitBuff(unit, i)
+
+--         --     if not name then break end
+
+--         --     if spellId == 431698 then -- Temporal Burst
+--         --         hasTemporalBurst = true
+--         --         temporalBurstTimeLeft = expirationTime - GetTime()
+--         --     elseif spellId == 390148 then -- Flow State
+--         --         hasFlowState = true
+--         --     end
+--         -- end
+--     end
+
+--     -- Rest of the function remains the same...
+--     local wasActive = self.evokerRateBuffs[unitGUID] ~= nil
+
+--     if hasTemporalBurst or hasFlowState then
+--         self.evokerRateBuffs[unitGUID] = {
+--             hasTemporalBurst = hasTemporalBurst,
+--             hasFlowState = hasFlowState,
+--             temporalBurstTimeLeft = temporalBurstTimeLeft,
+--             lastUpdate = GetTime()
+--         }
+
+--         if not wasActive and not self.evokerUpdateFrame:IsShown() then
+--             self.lastEvokerUpdate = GetTime()
+--             self.evokerUpdateFrame:Show()
+--         end
+--     else
+--         self.evokerRateBuffs[unitGUID] = nil
+
+--         if wasActive and not next(self.evokerRateBuffs) then
+--             self.evokerUpdateFrame:Hide()
+--         end
+--     end
+-- end
+
 function OmniBar:UNIT_AURA(event, unit, updateInfo)
     if not unit then return end
 
-    -- Only track player, party, raid, and arena units
     local isTrackedUnit = false
     if UnitIsUnit(unit, "player") then
         isTrackedUnit = true
@@ -3838,50 +4130,61 @@ function OmniBar:UNIT_AURA(event, unit, updateInfo)
     local unitGUID = UnitGUID(unit)
     if not unitGUID then return end
 
-    -- Check for our specific buffs using AuraUtil if available
     local hasTemporalBurst = false
     local hasFlowState = false
-    local temporalBurstTimeLeft = 0
+    local currentTime = GetTime()
 
-    -- Try using AuraUtil.FindAuraBySpellID if it exists
-    if AuraUtil and AuraUtil.FindAuraBySpellID then
-        local temporalBurstData = AuraUtil.FindAuraBySpellID(431698, unit, "HELPFUL")
-        if temporalBurstData then
-            hasTemporalBurst = true
-            temporalBurstTimeLeft = temporalBurstData.expirationTime - GetTime()
-        end
-
-        local flowStateData = AuraUtil.FindAuraBySpellID(390148, unit, "HELPFUL")
-        if flowStateData then
-            hasFlowState = true
-        end
-    else
-        -- Fallback to UnitBuff iteration
-        for i = 1, 40 do
-            local name, icon, count, debuffType, duration, expirationTime, source,
-            isStealable, nameplateShowPersonal, spellId = UnitBuff(unit, i)
-
-            if not name then break end
-
-            if spellId == 431698 then -- Temporal Burst
-                hasTemporalBurst = true
-                temporalBurstTimeLeft = expirationTime - GetTime()
-            elseif spellId == 390148 then -- Flow State
-                hasFlowState = true
-            end
-        end
+    -- Initialize evokerRateBuffs if needed
+    if not self.evokerRateBuffs then
+        self.evokerRateBuffs = {}
     end
 
-    -- Rest of the function remains the same...
+    -- Check for buffs by name
+    local temporalBurstData = AuraUtil.FindAuraByName("Temporal Burst", unit, "HELPFUL")
+    if temporalBurstData then
+        hasTemporalBurst = true
+    end
+
+    local flowStateData = AuraUtil.FindAuraByName("Flow State", unit, "HELPFUL")
+    if flowStateData then
+        hasFlowState = true
+    end
+
+    local hasBlessingOfAutumn = false
+    local blessingOfAutumnData = AuraUtil.FindAuraByName("Blessing of Autumn", unit, "HELPFUL")
+    if blessingOfAutumnData then
+        hasBlessingOfAutumn = true
+    end
+
     local wasActive = self.evokerRateBuffs[unitGUID] ~= nil
 
-    if hasTemporalBurst or hasFlowState then
-        self.evokerRateBuffs[unitGUID] = {
-            hasTemporalBurst = hasTemporalBurst,
-            hasFlowState = hasFlowState,
-            temporalBurstTimeLeft = temporalBurstTimeLeft,
-            lastUpdate = GetTime()
-        }
+    if hasTemporalBurst or hasFlowState or hasBlessingOfAutumn then
+        -- Initialize buff tracking
+        if not self.evokerRateBuffs[unitGUID] then
+            self.evokerRateBuffs[unitGUID] = {}
+        end
+
+        local buffInfo = self.evokerRateBuffs[unitGUID]
+
+        -- Set Flow State
+        buffInfo.hasFlowState = hasFlowState
+        buffInfo.hasBlessingOfAutumn = hasBlessingOfAutumn
+
+        -- Set Temporal Burst with initial timestamp
+        if hasTemporalBurst then
+            if not buffInfo.hasTemporalBurst then
+                -- New Temporal Burst detected
+                buffInfo.hasTemporalBurst = true
+                buffInfo.temporalBurstStartTime = currentTime
+                buffInfo.temporalBurstInitialDuration = 30
+            end
+        else
+            if buffInfo.hasTemporalBurst then
+            end
+            buffInfo.hasTemporalBurst = false
+        end
+
+        buffInfo.lastUpdate = currentTime
 
         if not wasActive and not self.evokerUpdateFrame:IsShown() then
             self.lastEvokerUpdate = GetTime()
@@ -3898,46 +4201,87 @@ end
 
 function OmniBar:ProcessEvokerRateReduction(deltaTime)
     local hasActiveBuffs = false
+    local currentTime = GetTime()
 
     for unitGUID, buffInfo in pairs(self.evokerRateBuffs) do
         hasActiveBuffs = true
         local reductionRate = 1.0
 
-        -- Calculate Flow State reduction (flat 10%)
+        -- Flow State: flat 10%
         if buffInfo.hasFlowState then
-            reductionRate = reductionRate + 0.1
+            reductionRate = reductionRate * 1.1
         end
 
-        -- Calculate Temporal Burst reduction (scaling)
-        if buffInfo.hasTemporalBurst then
-            -- Update the time left
-            buffInfo.temporalBurstTimeLeft = buffInfo.temporalBurstTimeLeft - deltaTime
+        if buffInfo.hasBlessingOfAutumn then
+            reductionRate = reductionRate * 1.3 -- 30% increase
+        end
 
-            if buffInfo.temporalBurstTimeLeft > 0 then
-                -- Convert remaining time to percentage (capped at 30 seconds = 30%)
-                local remainingSeconds = math.min(30, math.max(1, buffInfo.temporalBurstTimeLeft))
-                local temporalBurstPercent = remainingSeconds / 100 -- 30 seconds = 0.30, 1 second = 0.01
-                reductionRate = reductionRate + temporalBurstPercent
+        -- Temporal Burst: calculate remaining time manually
+        if buffInfo.hasTemporalBurst and buffInfo.temporalBurstStartTime then
+            local elapsedTime = currentTime - buffInfo.temporalBurstStartTime
+            local remainingTime = buffInfo.temporalBurstInitialDuration - elapsedTime
+
+            if remainingTime > 0 then
+                -- Clamp to 1-30 second range for rate calculation
+                local scaledTime = math.min(30, math.max(1, remainingTime))
+                local temporalBurstMultiplier = 1 + (scaledTime / 100)
+                reductionRate = reductionRate * temporalBurstMultiplier
+
+                -- Debug output every second
+                if math.floor(currentTime) ~= math.floor(self.lastDebugTime or 0) then
+                    self.lastDebugTime = currentTime
+                end
             else
+                -- Temporal Burst expired
                 buffInfo.hasTemporalBurst = false
+                buffInfo.temporalBurstStartTime = nil
             end
         end
 
-        -- Apply the reduction to all relevant cooldowns
-        if reductionRate > 1.0 then
+        -- Clean up if no buffs remain
+        if not buffInfo.hasTemporalBurst and not buffInfo.hasFlowState and not buffInfo.hasBlessingOfAutumn then
+            self.evokerRateBuffs[unitGUID] = nil
+        else
+            -- Apply the reduction
             self:ApplyEvokerRateReduction(unitGUID, deltaTime, reductionRate)
         end
     end
 
     -- Clean up and stop frame if no active buffs
-    if not hasActiveBuffs then
-        wipe(self.evokerRateBuffs)
+    if not next(self.evokerRateBuffs) then
         self.evokerUpdateFrame:Hide()
     end
 end
 
+function OmniBar:GetUnitFromGUID(targetGUID)
+    -- Check player first
+    if UnitGUID("player") == targetGUID then
+        return "player"
+    end
+
+    -- Check party/raid
+    local prefix = IsInRaid() and "raid" or "party"
+    local count = IsInRaid() and GetNumGroupMembers() or GetNumGroupMembers() - 1
+    for i = 1, count do
+        local unit = prefix .. i
+        if UnitExists(unit) and UnitGUID(unit) == targetGUID then
+            return unit
+        end
+    end
+
+    -- Check arena
+    for i = 1, 5 do
+        local unit = "arena" .. i
+        if UnitExists(unit) and UnitGUID(unit) == targetGUID then
+            return unit
+        end
+    end
+
+    return nil
+end
+
 function OmniBar:ApplyEvokerRateReduction(unitGUID, deltaTime, reductionRate)
-    local reductionAmount = deltaTime * (reductionRate - 1.0) -- Only the bonus reduction
+    local reductionAmount = deltaTime * (reductionRate - 1.0)
 
     for _, bar in ipairs(self.bars) do
         if not bar.disabled then
@@ -3948,13 +4292,11 @@ function OmniBar:ApplyEvokerRateReduction(unitGUID, deltaTime, reductionRate)
                     if icon.sourceGUID == unitGUID then
                         iconMatches = true
                     elseif type(icon.sourceGUID) == "number" then
-                        -- Handle arena units
                         local arenaUnit = "arena" .. icon.sourceGUID
                         if UnitExists(arenaUnit) and UnitGUID(arenaUnit) == unitGUID then
                             iconMatches = true
                         end
                     elseif icon.sourceName then
-                        -- Check by name as fallback
                         for unit in pairs({ player = true, target = true, focus = true }) do
                             if UnitExists(unit) and UnitGUID(unit) == unitGUID and
                                 GetUnitName(unit, true) == icon.sourceName then
@@ -3965,7 +4307,6 @@ function OmniBar:ApplyEvokerRateReduction(unitGUID, deltaTime, reductionRate)
                     end
 
                     if iconMatches then
-                        -- Apply reduction to active cooldowns
                         local start, duration = icon.cooldown:GetCooldownTimes()
                         if start > 0 and duration > 0 then
                             start = start / 1000
@@ -3975,24 +4316,21 @@ function OmniBar:ApplyEvokerRateReduction(unitGUID, deltaTime, reductionRate)
                             local endTime = start + duration
                             local newEndTime = endTime - reductionAmount
 
-                            -- Handle charges
+                            -- Handle charges and normal cooldowns
                             local maxCharges = addon.Cooldowns[icon.spellID] and addon.Cooldowns[icon.spellID].charges
                             if maxCharges and icon.charges ~= nil and icon.charges < maxCharges and newEndTime <= currentTime then
-                                -- Charge completed
                                 local wasZero = (icon.charges == 0)
                                 icon.charges = icon.charges + 1
                                 icon.Count:SetText(icon.charges > 0 and icon.charges or "")
                                 OmniBar_UpdateBorder(bar, icon)
 
                                 if icon.charges < maxCharges then
-                                    -- Start next charge
                                     local excessReduction = currentTime - newEndTime
                                     local adjustedStart = currentTime - excessReduction
                                     icon.cooldown:SetCooldown(adjustedStart, duration)
                                     icon.cooldown.start = adjustedStart
                                     icon.cooldown.finish = adjustedStart + duration
                                 else
-                                    -- All charges ready
                                     icon.cooldown:SetCooldown(0, 0)
                                     icon.cooldown.finish = 0
 
@@ -4006,7 +4344,6 @@ function OmniBar:ApplyEvokerRateReduction(unitGUID, deltaTime, reductionRate)
                                     end
                                 end
                             else
-                                -- Normal cooldown reduction
                                 newEndTime = math.max(currentTime, newEndTime)
                                 local newRemainingTime = newEndTime - currentTime
                                 local newStartTime = currentTime - (duration - newRemainingTime)
