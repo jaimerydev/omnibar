@@ -371,13 +371,13 @@ function OmniBar:OnInitialize()
     addon.CooldownReduction[342247] = addon.CooldownReduction[342247] or {}
     addon.CooldownReduction[342247][212653] = {
         amount = 25,
-        event = "UNIT_SPELLCAST_SUCCEEDED"
+        event = "SPELL_CAST_SUCCESS"
     }
 
     addon.CooldownReduction[342247] = addon.CooldownReduction[342247] or {}
     addon.CooldownReduction[342247][1953] = {
         amount = 15,
-        event = "UNIT_SPELLCAST_SUCCEEDED"
+        event = "SPELL_CAST_SUCCESS"
     }
 
 
@@ -398,7 +398,7 @@ function OmniBar:OnInitialize()
     end
     addon.CooldownReduction[HOLY_FIRE][CHASTISE] = {
         amount = 2,
-        event = "UNIT_SPELLCAST_SUCCEEDED",
+        event = "SPELL_CAST_SUCCESS",
         buffCheck = true
     }
 
@@ -407,7 +407,7 @@ function OmniBar:OnInitialize()
     end
     addon.CooldownReduction[SMITE][CHASTISE] = {
         amount = 4,
-        event = "UNIT_SPELLCAST_SUCCEEDED",
+        event = "SPELL_CAST_SUCCESS",
         buffCheck = true
     }
 
@@ -416,7 +416,7 @@ function OmniBar:OnInitialize()
     end
     addon.CooldownReduction[HOLY_NOVA][CHASTISE] = {
         amount = 4,
-        event = "UNIT_SPELLCAST_SUCCEEDED",
+        event = "SPELL_CAST_SUCCESS",
         buffCheck = true
     }
 
@@ -434,7 +434,7 @@ function OmniBar:OnInitialize()
     end
     addon.CooldownReduction[APOTHEOSIS][CHASTISE] = {
         amount = 45,
-        event = "UNIT_SPELLCAST_SUCCEEDED"
+        event = "SPELL_CAST_SUCCESS"
     }
 
 
@@ -443,7 +443,7 @@ function OmniBar:OnInitialize()
     end
     addon.CooldownReduction[POM][SEREN] = {
         amount = 4,
-        event = "UNIT_SPELLCAST_SUCCEEDED",
+        event = "SPELL_CAST_SUCCESS",
         buffCheck = true
     }
 
@@ -452,7 +452,7 @@ function OmniBar:OnInitialize()
     end
     addon.CooldownReduction[PWL][SEREN] = {
         amount = 4,
-        event = "UNIT_SPELLCAST_SUCCEEDED",
+        event = "SPELL_CAST_SUCCESS",
         buffCheck = true
     }
 
@@ -461,7 +461,7 @@ function OmniBar:OnInitialize()
     end
     addon.CooldownReduction[FHEAL][SEREN] = {
         amount = 6,
-        event = "UNIT_SPELLCAST_SUCCEEDED",
+        event = "SPELL_CAST_SUCCESS",
         buffCheck = true
     }
 
@@ -471,7 +471,7 @@ function OmniBar:OnInitialize()
     end
     addon.CooldownReduction[HEAL_NORM][SEREN] = {
         amount = 6,
-        event = "UNIT_SPELLCAST_SUCCEEDED",
+        event = "SPELL_CAST_SUCCESS",
         buffCheck = true
     }
 
@@ -492,7 +492,7 @@ function OmniBar:OnInitialize()
     end
     addon.CooldownReduction[APOTHEOSIS][SEREN] = {
         amount = 45,
-        event = "UNIT_SPELLCAST_SUCCEEDED"
+        event = "SPELL_CAST_SUCCESS"
     }
 
     for spellID, spellData in pairs(addon.Cooldowns) do
@@ -503,7 +503,7 @@ function OmniBar:OnInitialize()
 
             addon.CooldownReduction[spellID][spellID] = {
                 amount = 7,
-                event = "UNIT_SPELLCAST_SUCCEEDED",
+                event = "SPELL_CAST_SUCCESS",
                 buffName = "Premonition of Insight"
             }
         end
@@ -523,7 +523,7 @@ function OmniBar:OnInitialize()
     end
     addon.CooldownReduction[DISPATCH][GRAPPLE] = {
         amount = cpReduction,
-        event = "UNIT_SPELLCAST_SUCCEEDED",
+        event = "SPELL_CAST_SUCCESS",
         buffName = "True Bearing"
     }
 
@@ -532,7 +532,7 @@ function OmniBar:OnInitialize()
     end
     addon.CooldownReduction[BTE][GRAPPLE] = {
         amount = cpReduction,
-        event = "UNIT_SPELLCAST_SUCCEEDED",
+        event = "SPELL_CAST_SUCCESS",
         buffName = "True Bearing"
     }
 
@@ -541,7 +541,7 @@ function OmniBar:OnInitialize()
     end
     addon.CooldownReduction[SND][GRAPPLE] = {
         amount = cpReduction,
-        event = "UNIT_SPELLCAST_SUCCEEDED",
+        event = "SPELL_CAST_SUCCESS",
         buffName = "True Bearing"
     }
 
@@ -550,7 +550,7 @@ function OmniBar:OnInitialize()
     end
     addon.CooldownReduction[KS][GRAPPLE] = {
         amount = cpReduction,
-        event = "UNIT_SPELLCAST_SUCCEEDED",
+        event = "SPELL_CAST_SUCCESS",
         buffName = "True Bearing"
     }
 
@@ -559,7 +559,7 @@ function OmniBar:OnInitialize()
     end
     addon.CooldownReduction[DISPATCH][VANISH] = {
         amount = cpReduction,
-        event = "UNIT_SPELLCAST_SUCCEEDED",
+        event = "SPELL_CAST_SUCCESS",
         buffName = "True Bearing"
     }
 
@@ -568,7 +568,7 @@ function OmniBar:OnInitialize()
     end
     addon.CooldownReduction[BTE][VANISH] = {
         amount = cpReduction,
-        event = "UNIT_SPELLCAST_SUCCEEDED",
+        event = "SPELL_CAST_SUCCESS",
         buffName = "True Bearing"
     }
 
@@ -577,7 +577,7 @@ function OmniBar:OnInitialize()
     end
     addon.CooldownReduction[SND][VANISH] = {
         amount = cpReduction,
-        event = "UNIT_SPELLCAST_SUCCEEDED",
+        event = "SPELL_CAST_SUCCESS",
         buffName = "True Bearing"
     }
 
@@ -586,7 +586,7 @@ function OmniBar:OnInitialize()
     end
     addon.CooldownReduction[KS][VANISH] = {
         amount = cpReduction,
-        event = "UNIT_SPELLCAST_SUCCEEDED",
+        event = "SPELL_CAST_SUCCESS",
         buffName = "True Bearing"
     }
 
@@ -626,15 +626,33 @@ function OmniBar:OnInitialize()
     if not self.db.global.cooldownReduction[100][6544] then
         self.db.global.cooldownReduction[100][6544] = {
             amount = 2,
-            event = "UNIT_SPELLCAST_SUCCEEDED"
+            event = "SPELL_CAST_SUCCESS"
         }
     end
 
     addon.CooldownReduction[100] = addon.CooldownReduction[100] or {}
     addon.CooldownReduction[100][6544] = {
         amount = 2,
-        event = "UNIT_SPELLCAST_SUCCEEDED"
+        event = "SPELL_CAST_SUCCESS"
     }
+
+    -- Charge on Leap (new id)
+    if not self.db.global.cooldownReduction[100] then
+        self.db.global.cooldownReduction[100] = {}
+    end
+    if not self.db.global.cooldownReduction[100][52174] then
+        self.db.global.cooldownReduction[100][52174] = {
+            amount = 2,
+            event = "SPELL_CAST_SUCCESS"
+        }
+    end
+
+    addon.CooldownReduction[100] = addon.CooldownReduction[100] or {}
+    addon.CooldownReduction[100][52174] = {
+        amount = 2,
+        event = "SPELL_CAST_SUCCESS"
+    }
+
 
     -- Leap on Charge
     if not self.db.global.cooldownReduction[52174] then
@@ -643,16 +661,32 @@ function OmniBar:OnInitialize()
     if not self.db.global.cooldownReduction[52174][100] then
         self.db.global.cooldownReduction[52174][100] = {
             amount = 5,
-            event = "UNIT_SPELLCAST_SUCCEEDED"
+            event = "SPELL_CAST_SUCCESS"
         }
     end
 
     addon.CooldownReduction[52174] = addon.CooldownReduction[52174] or {}
     addon.CooldownReduction[52174][100] = {
         amount = 5,
-        event = "UNIT_SPELLCAST_SUCCEEDED"
+        event = "SPELL_CAST_SUCCESS"
     }
 
+    -- Leap on Charge new
+    if not self.db.global.cooldownReduction[52174] then
+        self.db.global.cooldownReduction[52174] = {}
+    end
+    if not self.db.global.cooldownReduction[52174][126664] then
+        self.db.global.cooldownReduction[52174][126664] = {
+            amount = 5,
+            event = "SPELL_CAST_SUCCESS"
+        }
+    end
+
+    addon.CooldownReduction[52174] = addon.CooldownReduction[52174] or {}
+    addon.CooldownReduction[52174][126664] = {
+        amount = 5,
+        event = "SPELL_CAST_SUCCESS"
+    }
 
 
     self:SetupOptions()
@@ -2498,7 +2532,6 @@ end
 function OmniBar:COMBAT_LOG_EVENT_UNFILTERED()
     local timestamp, subevent, _, sourceGUID, sourceName, sourceFlags, _, destGUID, destName, destFlags, destRaidFlags, spellID, spellName, spellSchool, amount, overkill, school, resisted, blocked, absorbed, critical =
         CombatLogGetCurrentEventInfo()
-
     local procIDs = {
         [1719] = true,
         [107574] = true,
@@ -2627,42 +2660,60 @@ function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, event
     self.recentCDREvents = self.recentCDREvents or {}
 
     -- Different duplicate prevention for channeled vs normal spells
-    if CHANNELED_SPELLS[spellID] then
-        -- For channeled spells, use time-based duplicate prevention
-        if self.recentCDREvents[eventKey] and (currentTime - self.recentCDREvents[eventKey]) < 0.01 then
-            return
-        end
-        -- Store timestamp for channeled spells
-        self.recentCDREvents[eventKey] = currentTime
-    else
-        -- For non-channeled spells, use event-based duplicate prevention
-        if self.recentCDREvents[eventKey] then
-            return
-        end
-        -- Store boolean for non-channeled spells
-        self.recentCDREvents[eventKey] = true
-    end
+    -- if CHANNELED_SPELLS[spellID] then
+    --     -- For channeled spells, use time-based duplicate prevention
+    --     if self.recentCDREvents[eventKey] and (currentTime - self.recentCDREvents[eventKey]) < 0.01 then
+    --         return
+    --     end
+    --     -- Store timestamp for channeled spells
+    --     self.recentCDREvents[eventKey] = currentTime
+    -- else
+    --     -- For non-channeled spells, use event-based duplicate prevention
+    --     if self.recentCDREvents[eventKey] then
+    --         return
+    --     end
+    --     -- Store boolean for non-channeled spells
+    --     self.recentCDREvents[eventKey] = true
+    -- end
 
-    -- Clean up old entries periodically to prevent memory bloat
+    -- -- Clean up old entries periodically to prevent memory bloat
+    -- if (currentTime - (self.lastCDRCleanup or 0)) > 10 then
+    --     self.lastCDRCleanup = currentTime
+    --     -- For mixed tracking (timestamps and booleans)
+    --     for key, value in pairs(self.recentCDREvents) do
+    --         if type(value) == "number" then
+    --             -- It's a timestamp from a channeled spell
+    --             if (currentTime - value) > 1 then
+    --                 self.recentCDREvents[key] = nil
+    --             end
+    --         end
+    --         -- Boolean values (non-channeled) are kept until full wipe
+    --     end
+
+    --     -- Do a full wipe every 60 seconds for non-channeled entries
+    --     if (currentTime - (self.lastFullCDRWipe or 0)) > 60 then
+    --         self.lastFullCDRWipe = currentTime
+    --         wipe(self.recentCDREvents)
+    --     end
+    -- end
+
+
+    local duplicateWindow = CHANNELED_SPELLS[spellID] and 0.01 or 0.1
+    if self.recentCDREvents[eventKey] and (currentTime - self.recentCDREvents[eventKey]) < duplicateWindow then
+        return
+    end
+    -- Store timestamp for all spells
+    self.recentCDREvents[eventKey] = currentTime
+
     if (currentTime - (self.lastCDRCleanup or 0)) > 10 then
         self.lastCDRCleanup = currentTime
-        -- For mixed tracking (timestamps and booleans)
-        for key, value in pairs(self.recentCDREvents) do
-            if type(value) == "number" then
-                -- It's a timestamp from a channeled spell
-                if (currentTime - value) > 1 then
-                    self.recentCDREvents[key] = nil
-                end
+        for key, timestamp in pairs(self.recentCDREvents) do
+            if (currentTime - timestamp) > 2 then
+                self.recentCDREvents[key] = nil
             end
-            -- Boolean values (non-channeled) are kept until full wipe
-        end
-
-        -- Do a full wipe every 60 seconds for non-channeled entries
-        if (currentTime - (self.lastFullCDRWipe or 0)) > 60 then
-            self.lastFullCDRWipe = currentTime
-            wipe(self.recentCDREvents)
         end
     end
+
 
     -- Find the casting unit
     local castingUnit
@@ -2696,85 +2747,6 @@ function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, event
     end
 
 
-    local COMBUSTION_ID = 190319
-    local FIRE_SPELLS = {
-        [133] = true,    -- Fireball
-        [11366] = true,  -- Pyroblast
-        [108853] = true, -- Fire Blast
-        [2948] = true,   -- Scorch
-        [257541] = true  -- Phoenix Flames
-    }
-
-    if FIRE_SPELLS[spellID] and castingUnit then
-        local hasCombustion = self:HasBuff(castingUnit, "Combustion")
-        local reductionAmount = 0
-
-        -- Base reduction for critical strikes
-        if eventType == "SPELL_CRIT" then
-            reductionAmount = reductionAmount + 1
-        end
-
-        -- Additional reduction when Combustion is active (Unleashed Inferno)
-        if hasCombustion then
-            reductionAmount = reductionAmount + 1.25
-        end
-
-        -- Apply the reduction if any
-        if reductionAmount > 0 then
-            for _, bar in ipairs(self.bars) do
-                for _, icon in ipairs(bar.active) do
-                    if icon.spellID == COMBUSTION_ID then
-                        -- Check if this icon belongs to the same player
-                        local samePlayer = false
-                        local isEnemyTracking = (bar.settings.trackUnit == "ENEMY")
-
-                        if isEnemyTracking then
-                            if sourceGUID and icon.sourceGUID then
-                                samePlayer = (sourceGUID == icon.sourceGUID)
-
-                                if not samePlayer and type(icon.sourceGUID) == "number" then
-                                    local arenaUnit = "arena" .. icon.sourceGUID
-                                    if UnitExists(arenaUnit) and UnitGUID(arenaUnit) == sourceGUID then
-                                        samePlayer = true
-                                    end
-                                end
-                            end
-
-                            if not samePlayer and sourceName and icon.sourceName then
-                                samePlayer = (sourceName == icon.sourceName)
-                            end
-                        else
-                            if sourceGUID and icon.sourceGUID then
-                                samePlayer = (sourceGUID == icon.sourceGUID)
-                            elseif sourceName and icon.sourceName then
-                                samePlayer = (sourceName == icon.sourceName)
-                            end
-                        end
-
-                        if samePlayer then
-                            local start, duration = icon.cooldown:GetCooldownTimes()
-                            if start > 0 and duration > 0 then
-                                start = start / 1000
-                                duration = duration / 1000
-
-                                local currentTime = GetTime()
-                                local endTime = start + duration
-                                local newEndTime = endTime - reductionAmount
-
-                                newEndTime = math.max(currentTime, newEndTime)
-                                local newRemainingTime = newEndTime - currentTime
-                                local newStartTime = currentTime - (duration - newRemainingTime)
-
-                                icon.cooldown:SetCooldown(newStartTime, duration)
-                                icon.cooldown.start = newStartTime
-                                icon.cooldown.finish = newEndTime
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
     -- Process the cooldown reduction
     for _, bar in ipairs(self.bars) do
         local isEnemyTracking = (bar.settings.trackUnit == "ENEMY")
@@ -2820,7 +2792,6 @@ function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, event
                             samePlayer = (sourceName == icon.sourceName)
                         end
                     end
-
                     if samePlayer then
                         local applyReduction = true
 
