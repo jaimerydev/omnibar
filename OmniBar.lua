@@ -1492,8 +1492,32 @@ function OmniBar:Initialize(key, name)
     table.insert(self.bars, f)
 end
 
+-- local function SanitizeBarName(name)
+--     if not name or name == "" then
+--         return nil
+--     end
+
+--     -- Remove spaces and convert to proper case
+--     local sanitized = name:gsub("%s+", ""):gsub("^%l", string.upper)
+
+--     -- Remove any characters that aren't alphanumeric
+--     sanitized = sanitized:gsub("[^%w]", "")
+
+--     -- Ensure it starts with a letter
+--     if not sanitized:match("^%a") then
+--         sanitized = "Bar" .. sanitized
+--     end
+
+--     -- Limit length to prevent issues
+--     if #sanitized > 20 then
+--         sanitized = sanitized:sub(1, 20)
+--     end
+
+--     return "OmniBar" .. sanitized
+-- end
+
 local function SanitizeBarName(name)
-    if not name or name == "" then
+    if not name or name == "" or type(name) ~= "string" then
         return nil
     end
 
@@ -1515,7 +1539,6 @@ local function SanitizeBarName(name)
 
     return "OmniBar" .. sanitized
 end
-
 local function GenerateUniqueKey(self, baseName)
     local baseKey = SanitizeBarName(baseName)
     if not baseKey then
@@ -1547,22 +1570,17 @@ end
 --         end
 --     end
 -- end
-function OmniBar:Create(customName)
-    -- If no custom name provided, prompt user or use default
-    local barName = customName or ("OmniBar " .. self.index)
-
-    -- Generate a unique key based on the name
-    local key = GenerateUniqueKey(self, barName)
-
-    -- Ensure we increment index regardless
-    self.index = self.index + 1
-
-    -- Initialize the bar with the generated key and original name
-    self:Initialize(key, barName)
-    self:AddBarToOptions(key, true)
-    self:OnEnable()
-
-    return key -- Return the key so caller knows what was created
+function OmniBar:Create()
+    while true do
+        local key = "OmniBar" .. self.index
+        self.index = self.index + 1
+        if (not self.db.profile.bars[key]) then
+            self:Initialize(key, "OmniBar " .. (self.index - 1))
+            self:AddBarToOptions(key, true)
+            self:OnEnable()
+            return
+        end
+    end
 end
 
 function OmniBar:RenameBar(oldKey, newName)
@@ -1608,17 +1626,7 @@ function OmniBar:ListBars()
 end
 
 -- Add slash command support for the new functionality
-SLASH_OMNIBAR_CREATE1 = "/obcreate"
-SlashCmdList.OMNIBAR_CREATE = function(args)
-    local name = args and args:trim() or nil
-    if not name or name == "" then
-        OmniBar:Print("Usage: /obcreate <name> - Creates a new bar with the specified name")
-        return
-    end
 
-    local key = OmniBar:Create(name)
-    OmniBar:Print("Created new bar: " .. key .. " ('" .. name .. "')")
-end
 
 SLASH_OMNIBAR_RENAME1 = "/obrename"
 SlashCmdList.OMNIBAR_RENAME = function(args)
