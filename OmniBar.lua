@@ -1276,6 +1276,114 @@ function OmniBar_SpellCast(self, event, name, spellID)
     OmniBar_AddIcon(self, self.spellCasts[name][spellID])
 end
 
+-- function OmniBar:Initialize(key, name)
+--     if (not self.db.profile.bars[key]) then
+--         self.db.profile.bars[key] = { name = name }
+--         for a, b in pairs(DEFAULTS) do
+--             self.db.profile.bars[key][a] = b
+--         end
+--     end
+
+--     self:AddCustomSpells()
+
+--     local f = _G[key] or CreateFrame("Frame", key, UIParent, "OmniBarTemplate")
+--     f:Show()
+--     f.settings = self.db.profile.bars[key]
+--     f.settings.align = f.settings.align or "CENTER"
+--     f.settings.maxIcons = f.settings.maxIcons or DEFAULTS.maxIcons
+--     f.key = key
+--     f.icons = {}
+--     f.active = {}
+--     f.detected = {}
+--     f.castHistory = f.castHistory or {} -- Initialize with safety check
+
+--     f.spellCasts = self.spellCasts
+--     f.specs = self.specs
+--     f.BASE_ICON_SIZE = BASE_ICON_SIZE
+--     f.numIcons = 0
+--     f:RegisterForDrag("LeftButton")
+--     f.sortKeys = {}
+--     f.sortKeysAssigned = nil
+--     f.forceResort = nil
+--     f.frozenOrder = nil
+
+--     f.anchor.text:SetText(f.settings.name)
+
+
+--     f.settings.units = nil
+--     if (not f.settings.trackUnit) then f.settings.trackUnit = "ENEMY" end
+
+
+--     if f.settings.spells then
+--         for k, _ in pairs(f.settings.spells) do
+--             if (not addon.Cooldowns[k]) or addon.Cooldowns[k].parent then f.settings.spells[k] = nil end
+--         end
+--     end
+
+--     f.adaptive = OmniBar_IsAdaptive(f)
+
+
+--     for k, v in pairs(f.settings) do
+--         local spellID = tonumber(k:match("^spell(%d+)"))
+--         if spellID then
+--             if (not f.settings.spells) then
+--                 f.settings.spells = {}
+--                 if (not f.settings.noDefault) then
+--                     for k, v in pairs(addon.Cooldowns) do
+--                         if v.default then f.settings.spells[k] = true end
+--                     end
+--                 end
+--             end
+--             f.settings.spells[spellID] = v
+--             f.settings[k] = nil
+--         end
+--     end
+--     f.settings.noDefault = nil
+
+
+--     OmniBar_LoadSettings(f)
+
+
+--     for spellID, _ in pairs(addon.Cooldowns) do
+--         if OmniBar_IsSpellEnabled(f, spellID) then
+--             OmniBar_CreateIcon(f)
+--         end
+--     end
+
+
+--     for i = 1, MAX_DUPLICATE_ICONS do
+--         OmniBar_CreateIcon(f)
+--     end
+
+--     OmniBar_ShowAnchor(f)
+--     OmniBar_ResetIcons(f)
+--     OmniBar_UpdateIcons(f)
+--     OmniBar_Center(f)
+
+--     f.OnEvent = OmniBar_OnEvent
+
+--     f:RegisterEvent("PLAYER_ENTERING_WORLD", "OnEvent")
+--     f:RegisterEvent("ZONE_CHANGED_NEW_AREA", "OnEvent")
+--     f:RegisterEvent("PLAYER_TARGET_CHANGED", "OnEvent")
+--     f:RegisterEvent("PLAYER_REGEN_DISABLED", "OnEvent")
+--     f:RegisterEvent("GROUP_ROSTER_UPDATE", "OnEvent")
+
+--     if WOW_PROJECT_ID ~= WOW_PROJECT_CLASSIC then
+--         f:RegisterEvent("PLAYER_FOCUS_CHANGED", "OnEvent")
+--         f:RegisterEvent("ARENA_OPPONENT_UPDATE", "OnEvent")
+--     end
+
+--     if WOW_PROJECT_ID == WOW_PROJECT_MAINLINE then
+--         f:RegisterEvent("ARENA_PREP_OPPONENT_SPECIALIZATIONS", "OnEvent")
+--         f:RegisterEvent("UPDATE_BATTLEFIELD_STATUS", "OnEvent")
+--         f:RegisterEvent("PVP_MATCH_ACTIVE", "OnEvent")
+--     end
+
+--     f:RegisterEvent("UPDATE_BATTLEFIELD_SCORE", "OnEvent")
+
+--     table.insert(self.bars, f)
+-- end
+
 function OmniBar:Initialize(key, name)
     if (not self.db.profile.bars[key]) then
         self.db.profile.bars[key] = { name = name }
@@ -1295,7 +1403,7 @@ function OmniBar:Initialize(key, name)
     f.icons = {}
     f.active = {}
     f.detected = {}
-    f.castHistory = f.castHistory or {} -- Initialize with safety check
+    f.castHistory = f.castHistory or {}
 
     f.spellCasts = self.spellCasts
     f.specs = self.specs
@@ -1384,18 +1492,151 @@ function OmniBar:Initialize(key, name)
     table.insert(self.bars, f)
 end
 
-function OmniBar:Create()
-    while true do
-        local key = "OmniBar" .. self.index
-        self.index = self.index + 1
-        if (not self.db.profile.bars[key]) then
-            self:Initialize(key, "OmniBar " .. (self.index - 1))
-            self:AddBarToOptions(key, true)
-            self:OnEnable()
-            return
+local function SanitizeBarName(name)
+    if not name or name == "" then
+        return nil
+    end
+
+    -- Remove spaces and convert to proper case
+    local sanitized = name:gsub("%s+", ""):gsub("^%l", string.upper)
+
+    -- Remove any characters that aren't alphanumeric
+    sanitized = sanitized:gsub("[^%w]", "")
+
+    -- Ensure it starts with a letter
+    if not sanitized:match("^%a") then
+        sanitized = "Bar" .. sanitized
+    end
+
+    -- Limit length to prevent issues
+    if #sanitized > 20 then
+        sanitized = sanitized:sub(1, 20)
+    end
+
+    return "OmniBar" .. sanitized
+end
+
+local function GenerateUniqueKey(self, baseName)
+    local baseKey = SanitizeBarName(baseName)
+    if not baseKey then
+        -- Fallback to old system if name can't be sanitized
+        return "OmniBar" .. self.index
+    end
+
+    local key = baseKey
+    local counter = 1
+
+    -- Check if key already exists
+    while self.db.profile.bars[key] do
+        key = baseKey .. counter
+        counter = counter + 1
+    end
+
+    return key
+end
+
+-- function OmniBar:Create()
+--     while true do
+--         local key = "OmniBar" .. self.index
+--         self.index = self.index + 1
+--         if (not self.db.profile.bars[key]) then
+--             self:Initialize(key, "OmniBar " .. (self.index - 1))
+--             self:AddBarToOptions(key, true)
+--             self:OnEnable()
+--             return
+--         end
+--     end
+-- end
+function OmniBar:Create(customName)
+    -- If no custom name provided, prompt user or use default
+    local barName = customName or ("OmniBar " .. self.index)
+
+    -- Generate a unique key based on the name
+    local key = GenerateUniqueKey(self, barName)
+
+    -- Ensure we increment index regardless
+    self.index = self.index + 1
+
+    -- Initialize the bar with the generated key and original name
+    self:Initialize(key, barName)
+    self:AddBarToOptions(key, true)
+    self:OnEnable()
+
+    return key -- Return the key so caller knows what was created
+end
+
+function OmniBar:RenameBar(oldKey, newName)
+    if not self.db.profile.bars[oldKey] then
+        self:Print("Bar with key '" .. oldKey .. "' not found.")
+        return false
+    end
+
+    local newKey = GenerateUniqueKey(self, newName)
+
+    if newKey == oldKey then
+        -- Just update the display name
+        self.db.profile.bars[oldKey].name = newName
+        if _G[oldKey] then
+            _G[oldKey].anchor.text:SetText(newName)
         end
+        return true
+    end
+
+    -- Copy the bar data to new key
+    self.db.profile.bars[newKey] = {}
+    for k, v in pairs(self.db.profile.bars[oldKey]) do
+        self.db.profile.bars[newKey][k] = v
+    end
+    self.db.profile.bars[newKey].name = newName
+
+    -- Delete old bar and create new one
+    self:Delete(oldKey, false)
+    self:Initialize(newKey, newName)
+    self:AddBarToOptions(newKey, true)
+
+    self:Print("Bar renamed from '" .. oldKey .. "' to '" .. newKey .. "'")
+    return true
+end
+
+-- Add utility function to list all bars with their keys
+function OmniBar:ListBars()
+    self:Print("Current bars:")
+    for key, barData in pairs(self.db.profile.bars) do
+        local displayName = barData.name or "Unnamed"
+        self:Print("  Key: " .. key .. " | Name: " .. displayName)
     end
 end
+
+-- Add slash command support for the new functionality
+SLASH_OMNIBAR_CREATE1 = "/obcreate"
+SlashCmdList.OMNIBAR_CREATE = function(args)
+    local name = args and args:trim() or nil
+    if not name or name == "" then
+        OmniBar:Print("Usage: /obcreate <name> - Creates a new bar with the specified name")
+        return
+    end
+
+    local key = OmniBar:Create(name)
+    OmniBar:Print("Created new bar: " .. key .. " ('" .. name .. "')")
+end
+
+SLASH_OMNIBAR_RENAME1 = "/obrename"
+SlashCmdList.OMNIBAR_RENAME = function(args)
+    local oldKey, newName = args:match("^(%S+)%s+(.+)$")
+    if not oldKey or not newName then
+        OmniBar:Print("Usage: /obrename <current_key> <new_name>")
+        OmniBar:Print("Use /oblist to see current bar keys")
+        return
+    end
+
+    OmniBar:RenameBar(oldKey, newName)
+end
+
+SLASH_OMNIBAR_LIST1 = "/oblist"
+SlashCmdList.OMNIBAR_LIST = function()
+    OmniBar:ListBars()
+end
+
 
 function OmniBar:Refresh(full)
     self:GetSpecs()
@@ -4381,6 +4622,33 @@ function OmniBar:ApplyEvokerRateReduction(unitGUID, deltaTime, reductionRate)
             end
         end
     end
+end
+
+function OmniBar_AllOnCooldown(barKey, spellIDs)
+    local bar = _G[barKey]
+    if not bar or not bar.active then return false end
+
+    for _, spellID in ipairs(spellIDs) do
+        for _, icon in ipairs(bar.active) do
+            if icon:IsVisible() and icon.spellID == spellID then
+                -- Check if spell is ready (off cooldown)
+                local start, duration = icon.cooldown:GetCooldownTimes()
+                local isReady = (start == 0 or duration == 0)
+
+                -- Handle charges
+                if icon.charges ~= nil then
+                    isReady = (icon.charges > 0)
+                end
+
+                if isReady then
+                    return false -- Found a ready spell, so not all on cooldown
+                end
+                break
+            end
+        end
+    end
+
+    return true -- All spells are on cooldown
 end
 
 SLASH_OmniBar1 = "/ob"
