@@ -307,7 +307,8 @@ addon.Cooldowns = {
 
 	[100] = { duration = 17, class = "WARRIOR", charges = 2 },         -- Charge
 	[3411] = { duration = 38, class = "WARRIOR", charges = 2 },        -- Intervene
-	[6544] = { duration = 35, class = "WARRIOR" },                     -- Heroic Leap
+	--[6544] = { duration = 35, class = "WARRIOR" },                     -- Heroic Leap 52174
+	[52174] = { duration = 34, class = "WARRIOR" },                    -- Heroic Leap
 	[6552] = { default = true, duration = 14, class = "WARRIOR" },     -- Pummel
 	[18499] = { duration = 60, class = "WARRIOR" },                    -- Berserker Rage
 	[384100] = { parent = 18499, duration = 60 },                      -- Berserker Shout
@@ -750,7 +751,7 @@ addon.Cooldowns = {
 
 	[355936] = { duration = 24, class = "EVOKER", specID = { 1468 } }, -- Dream Breath
 	[363534] = { duration = 240, class = "EVOKER", specID = { 1468 } }, -- Rewind
-	[367226] = { duration = 24, class = "EVOKER", specID = { 1468 } }, -- Spiritbloom
+	[367226] = { duration = 14, class = "EVOKER", specID = { 1468 } }, -- Spiritbloom
 	[357170] = { duration = 60, class = "EVOKER", specID = { 1468 } }, -- Time Dilation
 	[370960] = { duration = 180, class = "EVOKER", specID = { 1468 } }, -- Emerald Communion
 	[359816] = { duration = 120, class = "EVOKER", specID = { 1468 } }, -- Dream Flight
