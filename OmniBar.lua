@@ -212,7 +212,7 @@ function OmniBar:OnInitialize()
     self.evokerUpdateFrame:Hide()
     self.evokerUpdateElapsed = 0
     self.lastEvokerUpdate = GetTime()
-
+    self.impishInstinctsThrottle = {}
 
     self.evokerUpdateFrame:SetScript("OnUpdate", function(_, elapsed)
         self.evokerUpdateElapsed = self.evokerUpdateElapsed + elapsed
@@ -2887,6 +2887,19 @@ function OmniBar:COMBAT_LOG_EVENT_UNFILTERED()
         (subevent == "SPELL_DAMAGE" and not CHANNELED_SPELLS_CAST_ONLY[spellID]) or
         subevent == "SPELL_AURA_APPLIED" then
         self:ProcessCooldownReduction(spellID, sourceGUID, sourceName, subevent)
+    end
+
+    if (subevent == "SWING_DAMAGE" or subevent == "RANGE_DAMAGE" or
+            (subevent == "SPELL_DAMAGE" and spellSchool == 1)) then
+        -- Throttle to once every 5 seconds per player
+        local currentTime = GetTime()
+        self.impishInstinctsThrottle = self.impishInstinctsThrottle or {}
+        local lastReduction = self.impishInstinctsThrottle[destGUID]
+
+        if not lastReduction or (currentTime - lastReduction) >= 5 then
+            self.impishInstinctsThrottle[destGUID] = currentTime
+            self:ReduceCooldown(destGUID, 3, 48020)
+        end
     end
 end
 
