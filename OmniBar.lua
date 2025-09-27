@@ -2725,11 +2725,12 @@ function OmniBar:UNIT_SPELLCAST_SUCCEEDED(event, unit, castGUID, spellID)
                 return
             end
         end
-    else
-        -- Non-empowered spell - check for regular empowering state
-        if self:IsEmpoweredSpell(unit) then
-            return
-        end
+        -- else
+        --     -- Non-empowered spell - check for regular empowering state
+        --     if self:IsEmpoweredSpell(unit) then
+        --         print(spellID, self:IsEmpoweredSpell(unit))
+        --         return
+        --     end
     end
 
     if not addon.Cooldowns[spellID] and not addon.CooldownReduction[spellID] then return end
@@ -2743,7 +2744,6 @@ function OmniBar:UNIT_SPELLCAST_SUCCEEDED(event, unit, castGUID, spellID)
     if UnitIsPlayer(unit) then
         sourceFlags = sourceFlags + COMBATLOG_OBJECT_TYPE_PLAYER
     end
-
     -- Add the spell cast for cooldown tracking
     if addon.Cooldowns[spellID] then
         self:AddSpellCast(event, UnitGUID(unit), GetUnitName(unit, true), sourceFlags, spellID)
