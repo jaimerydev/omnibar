@@ -213,6 +213,8 @@ function OmniBar:OnInitialize()
     self.evokerUpdateElapsed = 0
     self.lastEvokerUpdate = GetTime()
     self.impishInstinctsThrottle = {}
+    self.alterTimeApplied = {}
+    self.alterTimeRemoved = {}
 
     self.evokerUpdateFrame:SetScript("OnUpdate", function(_, elapsed)
         self.evokerUpdateElapsed = self.evokerUpdateElapsed + elapsed
@@ -2401,6 +2403,7 @@ end
 function OmniBar:AddSpellCast(event, sourceGUID, sourceName, sourceFlags, spellID, serverTime, customDuration)
     -- local isLocal = (not serverTime)
     --    serverTime = serverTime or GetServerTime()
+    local CHARGE_DUPLICATE_WINDOW = 0.05 -- 50ms window
 
 
     local isLocal = (not serverTime)
@@ -2739,6 +2742,14 @@ function OmniBar:UNIT_SPELLCAST_SUCCEEDED(event, unit, castGUID, spellID)
 
     if not addon.Cooldowns[spellID] and not addon.CooldownReduction[spellID] then return end
 
+    if addon.Cooldowns[spellID] and addon.Cooldowns[spellID].charges then
+        -- Only process cooldown reduction, not the spell cast itself
+        if addon.CooldownReduction[spellID] then
+            self:ProcessCooldownReduction(spellID, UnitGUID(unit), GetUnitName(unit, true), event, castGUID)
+        end
+        return
+    end
+
     -- if spellID == 342247 then
     --     local unitGUID = UnitGUID(unit)
     --     if not unitGUID then return end
@@ -2778,51 +2789,48 @@ function OmniBar:UNIT_SPELLCAST_SUCCEEDED(event, unit, castGUID, spellID)
 
     --     return -- Don't process as normal cooldown
     -- end
-
-    if spellID == 342247 then
+    if (spellID == 342245 or spellID == 342247) then
         local unitGUID = UnitGUID(unit)
         if not unitGUID then return end
 
-        -- Initialize tracking
-        if not self.alterTimeBuffs then
-            self.alterTimeBuffs = {}
-        end
-
-        -- Check if buff is currently active
         local alterTimeData = AuraUtil.FindAuraByName("Alter Time", unit, "HELPFUL")
+
         if alterTimeData then
-            -- Buff exists - this is initial cast, set up natural expiration timer
+            -- Buff exists after cast - set up natural expiration tracking
+            if not self.alterTimeBuffs then
+                self.alterTimeBuffs = {}
+            end
+
             if not self.alterTimeBuffs[unitGUID] then
                 self.alterTimeBuffs[unitGUID] = {
                     startTime = GetTime(),
-                    unit = unit, -- Store unit reference for timer
                     expiryTimer = C_Timer.NewTimer(10, function()
-                        -- Buff expired naturally - apply refund (same as manual)
-
+                        -- Natural expiration - give refund
                         self:ReduceCooldown(unitGUID, 25, 212653) -- Shimmer
-                        self:ReduceCooldown(unitGUID, 999, 1953)  -- Blink reset
-                        self.alterTimeBuffs[unitGUID] = nil
+                        self:ReduceCooldown(unitGUID, 999, 1953)  -- Blink
+
+                        if self.alterTimeBuffs and self.alterTimeBuffs[unitGUID] then
+                            self.alterTimeBuffs[unitGUID] = nil
+                        end
                     end)
                 }
             end
         else
-            -- No buff - this means manual activation (buff was consumed)
-            if self.alterTimeBuffs[unitGUID] then
-                -- Cancel natural expiration timer
+            -- No buff exists - instant consumption (manual activation)
+            if self.alterTimeBuffs and self.alterTimeBuffs[unitGUID] then
                 if self.alterTimeBuffs[unitGUID].expiryTimer then
                     self.alterTimeBuffs[unitGUID].expiryTimer:Cancel()
                 end
-                -- Apply manual activation refund (original working method)
+
                 self:ReduceCooldown(unitGUID, 25, 212653) -- Shimmer
-                self:ReduceCooldown(unitGUID, 999, 1953)  -- Blink reset
+                self:ReduceCooldown(unitGUID, 999, 1953)  -- Blink
                 self.alterTimeBuffs[unitGUID] = nil
             end
-            return -- ADD THIS to prevent double processing
         end
 
-        -- Don't return here - let it process the normal Alter Time cooldown
+        -- Don't process as normal cooldown
+        return
     end
-
 
     local sourceFlags = 0
 
@@ -2884,7 +2892,28 @@ function OmniBar:COMBAT_LOG_EVENT_UNFILTERED()
     local CHANNELED_SPELLS_CAST_ONLY = {
         [382445] = true,
     }
+    if subevent == "SPELL_AURA_REMOVED" and spellID == 342246 then
+        local startTime
+        if self.alterTimeBuffs and self.alterTimeBuffs[destGUID] then
+            startTime = self.alterTimeBuffs[destGUID].startTime
+        end
 
+        if startTime then
+            local diff = GetTime() - startTime
+
+            -- If removed early (clicked off or reactivated)
+            if diff <= 10.0 then
+                C_Timer.After(0.05, function()
+                    if self.alterTimeBuffs and self.alterTimeBuffs[destGUID] then
+                        if self.alterTimeBuffs[destGUID].expiryTimer then
+                            self.alterTimeBuffs[destGUID].expiryTimer:Cancel()
+                        end
+                        self.alterTimeBuffs[destGUID] = nil
+                    end
+                end)
+            end
+        end
+    end
     -- Guardian Spirit logic
     local GUARDIAN_SPIRIT_ID = 47788
     local GUARDIAN_SPIRIT_HEAL_ID = 48153
@@ -3008,24 +3037,24 @@ function OmniBar:COMBAT_LOG_EVENT_UNFILTERED()
     --     end
     -- end
 
-    -- Handle Alter Time buff removal (spellID 342246 is the buff)
-    if subevent == "SPELL_AURA_REMOVED" and spellID == 342246 then
-        if self.alterTimeBuffs and self.alterTimeBuffs[sourceGUID] and self.alterTimeBuffs[sourceGUID].startTime then
-            local timeDiff = GetTime() - self.alterTimeBuffs[sourceGUID].startTime
+    -- -- Handle Alter Time buff removal (spellID 342246 is the buff)
+    -- if subevent == "SPELL_AURA_REMOVED" and spellID == 342246 then
+    --     if self.alterTimeBuffs and self.alterTimeBuffs[sourceGUID] and self.alterTimeBuffs[sourceGUID].startTime then
+    --         local timeDiff = GetTime() - self.alterTimeBuffs[sourceGUID].startTime
 
-            -- If removed early (manual activation), just clean up
-            if timeDiff <= 9.8 then
-                C_Timer.After(0.1, function()
-                    if self.alterTimeBuffs[sourceGUID] then
-                        if self.alterTimeBuffs[sourceGUID].expiryTimer then
-                            self.alterTimeBuffs[sourceGUID].expiryTimer:Cancel()
-                        end
-                        self.alterTimeBuffs[sourceGUID] = nil
-                    end
-                end)
-            end
-        end
-    end
+    --         -- If removed early (manual activation), just clean up
+    --         if timeDiff <= 9.8 then
+    --             C_Timer.After(0.1, function()
+    --                 if self.alterTimeBuffs[sourceGUID] then
+    --                     if self.alterTimeBuffs[sourceGUID].expiryTimer then
+    --                         self.alterTimeBuffs[sourceGUID].expiryTimer:Cancel()
+    --                     end
+    --                     self.alterTimeBuffs[sourceGUID] = nil
+    --                 end
+    --             end)
+    --         end
+    --     end
+    -- end
 end
 
 function OmniBar:ProcessCooldownReduction(spellID, sourceGUID, sourceName, eventType, castGUID)
@@ -3517,7 +3546,6 @@ function OmniBar:ReduceCooldown(casterGUID, seconds, targetSpellID)
             end
         end
     end
-
     for _, bar in ipairs(self.bars) do
         for _, icon in ipairs(bar.active) do
             if icon and icon.cooldown and icon.sourceGUID and icon.sourceGUID == casterGUID then
@@ -3532,42 +3560,95 @@ function OmniBar:ReduceCooldown(casterGUID, seconds, targetSpellID)
 
                     -- Handle charge-based spells properly
                     local maxCharges = addon.Cooldowns[icon.spellID] and addon.Cooldowns[icon.spellID].charges
-                    if maxCharges and icon.charges ~= nil and icon.charges < maxCharges and newEndTime <= now then
-                        local wasZero = (icon.charges == 0)
-                        icon.charges = icon.charges + 1
-                        icon.Count:SetText(icon.charges > 0 and icon.charges or "")
-                        OmniBar_UpdateBorder(bar, icon)
-
-                        if bar.settings.hideChargedCooldownText and wasZero and icon.charges > 0 then
-                            icon.cooldown:SetHideCountdownNumbers(true)
-                            icon.cooldown.noCooldownCount = true
+                    if maxCharges and icon.charges ~= nil then
+                        -- CRITICAL FIX: Don't reduce if already at max charges
+                        if icon.charges >= maxCharges then
+                            return -- Skip this icon, it's already full
                         end
 
-                        if icon.charges < maxCharges then
-                            -- Still need more charges, apply excess reduction to next charge
-                            local excessReduction = now - newEndTime -- This is positive when newEndTime is in past
-                            local remainingTime = math.max(0, duration - excessReduction)
-                            local adjustedStart = now - (duration - remainingTime)
+                        if icon.charges < maxCharges and newEndTime <= now then
+                            local wasZero = (icon.charges == 0)
+                            icon.charges = icon.charges + 1
 
-                            icon.cooldown:SetCooldown(adjustedStart, duration)
-                            icon.cooldown.start = adjustedStart
-                            icon.cooldown.finish = now + remainingTime
-                        else
-                            -- All charges restored
-                            icon.cooldown:SetCooldown(0, 0)
-                            icon.cooldown.finish = 0
+                            -- FIX: Simple charge text - revert to original logic
+                            icon.Count:SetText(icon.charges > 0 and icon.charges or "")
 
-                            if bar.settings.showUnused and bar.settings.readyGlow ~= false then
-                                OmniBar_ShowActivationGlow(icon)
-                                C_Timer.After(1, function()
-                                    if icon then
-                                        OmniBar_HideActivationGlow(icon)
+                            OmniBar_UpdateBorder(bar, icon)
+
+                            -- Handle HCT with proper cooldown refresh
+                            if bar.settings.hideChargedCooldownText then
+                                if wasZero and icon.charges > 0 then
+                                    -- Going from 0 to 1+ charges - hide text but KEEP remaining cooldown
+                                    icon.cooldown:SetHideCountdownNumbers(true)
+                                    icon.cooldown.noCooldownCount = true
+
+                                    if icon.charges < maxCharges then
+                                        -- Calculate how much cooldown remains after giving one charge
+                                        local excessReduction = now - newEndTime
+                                        local remainingForNextCharge = duration - excessReduction
+
+                                        if remainingForNextCharge > 0 then
+                                            -- Still have cooldown for next charge
+                                            local adjustedStart = now - excessReduction
+
+                                            -- Clear and reset to avoid visual bugs
+                                            icon.cooldown:Clear()
+                                            C_Timer.After(0.01, function()
+                                                icon.cooldown:SetCooldown(adjustedStart, duration)
+                                                icon.cooldown.start = adjustedStart
+                                                icon.cooldown.finish = adjustedStart + duration
+                                            end)
+                                        else
+                                            -- Excess reduction would give another charge
+                                            icon.cooldown:Clear()
+                                            icon.cooldown:SetCooldown(0, 0)
+                                            icon.cooldown.finish = 0
+                                        end
+                                    else
+                                        -- Reached max charges
+                                        icon.cooldown:Clear()
+                                        icon.cooldown:SetCooldown(0, 0)
+                                        icon.cooldown.finish = 0
                                     end
-                                end)
+                                elseif icon.charges == maxCharges then
+                                    -- At max charges - fully clear cooldown
+                                    icon.cooldown:Clear()
+                                    icon.cooldown:SetCooldown(0, 0)
+                                    icon.cooldown.finish = 0
+                                    icon.cooldown.start = 0
+                                else
+                                    -- Still has charges but not max - adjust cooldown normally
+                                    local excessReduction = now - newEndTime
+                                    local adjustedStart = now - excessReduction
+                                    icon.cooldown:SetCooldown(adjustedStart, duration)
+                                    icon.cooldown.start = adjustedStart
+                                    icon.cooldown.finish = adjustedStart + duration
+                                end
+                            else
+                                -- Non-HCT path (unchanged)
+                                if icon.charges < maxCharges then
+                                    local excessReduction = now - newEndTime
+                                    local adjustedStart = now - excessReduction
+                                    icon.cooldown:SetCooldown(adjustedStart, duration)
+                                    icon.cooldown.start = adjustedStart
+                                    icon.cooldown.finish = adjustedStart + duration
+                                else
+                                    icon.cooldown:SetCooldown(0, 0)
+                                    icon.cooldown.finish = 0
+
+                                    if bar.settings.showUnused and bar.settings.readyGlow ~= false then
+                                        OmniBar_ShowActivationGlow(icon)
+                                        C_Timer.After(1, function()
+                                            if icon then
+                                                OmniBar_HideActivationGlow(icon)
+                                            end
+                                        end)
+                                    end
+                                end
                             end
                         end
                     else
-                        -- Normal reduction for non-charge spells or when not giving full charge
+                        -- Normal reduction for non-charge spells (unchanged)
                         newEndTime = math.max(now, newEndTime)
                         local newRemainingTime = newEndTime - now
                         local newStartTime = now - (duration - newRemainingTime)
@@ -3577,12 +3658,10 @@ function OmniBar:ReduceCooldown(casterGUID, seconds, targetSpellID)
                         icon.cooldown.finish = newEndTime
                     end
 
-
-
                     -- Update spell cast table
                     local spellCastTable = self.spellCasts[icon.sourceName]
                     if spellCastTable and spellCastTable[icon.spellID] then
-                        spellCastTable[icon.spellID].duration = newDuration or duration
+                        spellCastTable[icon.spellID].duration = duration
                         spellCastTable[icon.spellID].expires = icon.cooldown.finish or (now + duration)
                     end
                 end
@@ -4895,6 +4974,55 @@ function OmniBar_AllOnCooldown(barKey, spellIDs)
     end
 
     return true -- All spells are on cooldown
+end
+
+function OmniBar_GetShortestCooldownIfAllOnCD(barKey, spellIDs)
+    local bar = _G[barKey]
+    if not bar or not bar.active then return nil end
+
+    local currentTime = GetTime()
+    local shortestRemaining = nil
+    local foundReady = false
+    local foundAny = false
+
+    for _, spellID in ipairs(spellIDs) do
+        for _, icon in ipairs(bar.active) do
+            if icon:IsVisible() and icon.spellID == spellID then
+                foundAny = true
+                local start, duration = icon.cooldown:GetCooldownTimes()
+                start = start / 1000
+                duration = duration / 1000
+
+                local remaining = 0
+                if start > 0 and duration > 0 then
+                    remaining = (start + duration) - currentTime
+                end
+
+                -- Check charges
+                if icon.charges ~= nil and icon.charges > 0 then
+                    remaining = 0
+                end
+
+                if remaining <= 0 then
+                    foundReady = true
+                    return nil -- At least one is ready, return immediately
+                else
+                    if not shortestRemaining or remaining < shortestRemaining then
+                        shortestRemaining = remaining
+                    end
+                end
+
+                break
+            end
+        end
+    end
+
+    -- Only return shortest if we found spells AND none were ready
+    if foundAny and not foundReady and shortestRemaining then
+        return shortestRemaining
+    end
+
+    return nil
 end
 
 SLASH_OmniBar1 = "/ob"
