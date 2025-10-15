@@ -358,37 +358,39 @@ addon.Cooldowns = {
 
 	-- Warlock
 
-	[6358] = { duration = 30, class = "WARLOCK" },                       -- Seduction
-	[115268] = { parent = 6358 },                                        -- Mesmerize
-	[6360] = { duration = 25, class = "WARLOCK" },                       -- Whiplash
-	[115770] = { parent = 6360 },                                        -- Fellash
-	[6789] = { duration = 45, class = "WARLOCK" },                       -- Mortal Coil
-	[20707] = { duration = 600, class = "WARLOCK" },                     -- Soulstone
-	[30283] = { duration = 60, class = "WARLOCK" },                      -- Shadowfury
-	[104773] = { duration = 180, class = "WARLOCK" },                    -- Unending Resolve
-	[108416] = { duration = 45, class = "WARLOCK" },                     -- Dark Pact
-	[119910] = { default = true, duration = 24, class = "WARLOCK" },     -- Spell Lock (Command Demon)
-	[19647] = { parent = 119910 },                                       -- Spell Lock (Felhunter)
-	[119911] = { parent = 119910 },                                      -- Optical Blast (Command Demon)
-	[115781] = { parent = 119910 },                                      -- Optical Blast (Observer)
-	[132409] = { parent = 119910 },                                      -- Spell Lock (Grimoire of Sacrifice)
-	[171138] = { parent = 119910 },                                      -- Shadow Lock (Doomguard)
-	[171139] = { parent = 119910 },                                      -- Shadow Lock (Grimoire of Sacrifice)
-	[171140] = { parent = 119910 },                                      -- Shadow Lock (Command Demon)
-	[212295] = { duration = 45, class = "WARLOCK" },                     -- Nether Ward
-	[5484] = { duration = 40, class = "WARLOCK" },                       -- Howl of Terror
-	[384069] = { duration = 15, class = "WARLOCK" },                     -- Shadowflame
-	[353294] = { duration = 60, class = "WARLOCK" },                     -- Shadow Rift
-	[48020] = { duration = 30, class = "WARLOCK" },                      -- Demonic Circle Teleport
-	[333889] = { duration = 90, class = "WARLOCK" },                     -- Fel Domination
-	[328774] = { duration = 45, class = "WARLOCK" },                     -- Amplify Curse
-	[410598] = { duration = 60, class = "WARLOCK" },                     -- Soul Rip
-	[353753] = { duration = 30, class = "WARLOCK" },                     -- Bonds of Fel
-	[452930] = { duration = 60, class = "WARLOCK" },                     -- Demonic Healthstone
-	[442726] = { duration = 60, class = "WARLOCK", specID = { 265, 267 } }, -- Malevolence
-	[212623] = { duration = 15, class = "WARLOCK" },                     -- Singe Magic
-	[89808] = { parent = 212623 },                                       -- Singe Magic
-	[119905] = { parent = 212623 },                                      -- Singe Magic
+	[6358] = { duration = 30, class = "WARLOCK" }, -- Seduction
+	[115268] = { parent = 6358 },                  -- Mesmerize
+	[6360] = { duration = 25, class = "WARLOCK" }, -- Whiplash
+	[115770] = { parent = 6360 },                  -- Fellash
+	[6789] = { duration = 45, class = "WARLOCK" }, -- Mortal Coil
+	[20707] = { duration = 600, class = "WARLOCK" }, -- Soulstone
+	[30283] = { duration = 60, class = "WARLOCK" }, -- Shadowfury
+	[104773] = { duration = 180, class = "WARLOCK" }, -- Unending Resolve
+	[108416] = { duration = 45, class = "WARLOCK" }, -- Dark Pact
+	-- [119910] = { default = true, duration = 24, class = "WARLOCK", specID = { 265, 267 }},     -- Spell Lock (Command Demon)
+	-- [19647] = { parent = 119910 },                                       -- Spell Lock (Felhunter)
+	[19647] = { default = true, duration = 24, class = "WARLOCK", specID = { 265, 267 } }, -- Spell Lock (Command Demon)
+	[119910] = { parent = 119910, duration = 24 },                                     -- Spell Lock (Felhunter)
+	[119911] = { parent = 119910, duration = 24 },                                     -- Optical Blast (Command Demon)
+	[115781] = { parent = 119910, duration = 24 },                                     -- Optical Blast (Observer)
+	[132409] = { parent = 19647 },                                                     -- Spell Lock (Grimoire of Sacrifice)
+	[171138] = { parent = 119910 },                                                    -- Shadow Lock (Doomguard)
+	[171139] = { parent = 119910 },                                                    -- Shadow Lock (Grimoire of Sacrifice)
+	[171140] = { parent = 119910 },                                                    -- Shadow Lock (Command Demon)
+	[212295] = { duration = 45, class = "WARLOCK" },                                   -- Nether Ward
+	[5484] = { duration = 40, class = "WARLOCK" },                                     -- Howl of Terror
+	[384069] = { duration = 15, class = "WARLOCK" },                                   -- Shadowflame
+	[353294] = { duration = 60, class = "WARLOCK" },                                   -- Shadow Rift
+	[48020] = { duration = 30, class = "WARLOCK" },                                    -- Demonic Circle Teleport
+	[333889] = { duration = 90, class = "WARLOCK" },                                   -- Fel Domination
+	[328774] = { duration = 45, class = "WARLOCK" },                                   -- Amplify Curse
+	[410598] = { duration = 60, class = "WARLOCK" },                                   -- Soul Rip
+	[353753] = { duration = 30, class = "WARLOCK" },                                   -- Bonds of Fel
+	[452930] = { duration = 60, class = "WARLOCK" },                                   -- Demonic Healthstone
+	[442726] = { duration = 60, class = "WARLOCK", specID = { 265, 267 } },            -- Malevolence
+	[212623] = { duration = 15, class = "WARLOCK" },                                   -- Singe Magic
+	[89808] = { parent = 212623 },                                                     -- Singe Magic
+	[119905] = { parent = 212623 },                                                    -- Singe Magic
 
 	-- Affliction
 

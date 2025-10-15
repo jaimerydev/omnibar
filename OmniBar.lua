@@ -4529,6 +4529,7 @@ function OmniBar_Position(self)
         end
     end
     OmniBar_ShowAnchor(self)
+    self.lastIconUpdate = GetTime()
 end
 
 function OmniBar:Test()
@@ -4949,81 +4950,108 @@ function OmniBar:ApplyEvokerRateReduction(unitGUID, deltaTime, reductionRate)
     end
 end
 
-function OmniBar_AllOnCooldown(barKey, spellIDs)
-    local bar = _G[barKey]
-    if not bar or not bar.active then return false end
+-- function OmniBar_AllOnCooldown(barKey, spellIDs)
+--     local bar = _G[barKey]
+--     if not bar or not bar.active then return false end
 
-    for _, spellID in ipairs(spellIDs) do
-        for _, icon in ipairs(bar.active) do
-            if icon:IsVisible() and icon.spellID == spellID then
-                -- Check if spell is ready (off cooldown)
-                local start, duration = icon.cooldown:GetCooldownTimes()
-                local isReady = (start == 0 or duration == 0)
+--     for _, spellID in ipairs(spellIDs) do
+--         for _, icon in ipairs(bar.active) do
+--             if icon:IsVisible() and icon.spellID == spellID then
+--                 -- Check if spell is ready (off cooldown)
+--                 local start, duration = icon.cooldown:GetCooldownTimes()
+--                 local isReady = (start == 0 or duration == 0)
 
-                -- Handle charges
-                if icon.charges ~= nil then
-                    isReady = (icon.charges > 0)
-                end
+--                 -- Handle charges
+--                 if icon.charges ~= nil then
+--                     isReady = (icon.charges > 0)
+--                 end
 
-                if isReady then
-                    return false -- Found a ready spell, so not all on cooldown
-                end
-                break
-            end
-        end
-    end
+--                 if isReady then
+--                     return false -- Found a ready spell, so not all on cooldown
+--                 end
+--                 -- break
+--             end
+--         end
+--     end
 
-    return true -- All spells are on cooldown
-end
+--     return true -- All spells are on cooldown
+-- end
 
-function OmniBar_GetShortestCooldownIfAllOnCD(barKey, spellIDs)
-    local bar = _G[barKey]
-    if not bar or not bar.active then return nil end
+-- function OmniBar_GetShortestCooldownIfAllOnCD(barKey, spellIDs)
+--     local bar = _G[barKey]
+--     if not bar or not bar.active then return nil end
 
-    local currentTime = GetTime()
-    local shortestRemaining = nil
-    local foundReady = false
-    local foundAny = false
+--     local currentTime = GetTime()
+--     local shortestRemaining = nil
+--     local foundReady = false
+--     local foundAny = false
 
-    for _, spellID in ipairs(spellIDs) do
-        for _, icon in ipairs(bar.active) do
-            if icon:IsVisible() and icon.spellID == spellID then
-                foundAny = true
-                local start, duration = icon.cooldown:GetCooldownTimes()
-                start = start / 1000
-                duration = duration / 1000
+--     for _, spellID in ipairs(spellIDs) do
+--         for _, icon in ipairs(bar.active) do
+--             if icon:IsVisible() and icon.spellID == spellID then
+--                 foundAny = true
+--                 local start, duration = icon.cooldown:GetCooldownTimes()
+--                 start = start / 1000
+--                 duration = duration / 1000
 
-                local remaining = 0
-                if start > 0 and duration > 0 then
-                    remaining = (start + duration) - currentTime
-                end
+--                 local remaining = 0
+--                 if start > 0 and duration > 0 then
+--                     remaining = (start + duration) - currentTime
+--                 end
 
-                -- Check charges
-                if icon.charges ~= nil and icon.charges > 0 then
-                    remaining = 0
-                end
+--                 -- Check charges
+--                 if icon.charges ~= nil and icon.charges > 0 then
+--                     remaining = 0
+--                 end
 
-                if remaining <= 0 then
-                    foundReady = true
-                    return nil -- At least one is ready, return immediately
-                else
-                    if not shortestRemaining or remaining < shortestRemaining then
-                        shortestRemaining = remaining
-                    end
-                end
+--                 if remaining <= 0 then
+--                     foundReady = true
+--                     return nil -- At least one is ready, return immediately
+--                 else
+--                     if not shortestRemaining or remaining < shortestRemaining then
+--                         shortestRemaining = remaining
+--                     end
+--                 end
 
-                break
-            end
-        end
-    end
+--                 -- break
+--             end
+--         end
+--     end
 
-    -- Only return shortest if we found spells AND none were ready
-    if foundAny and not foundReady and shortestRemaining then
-        return shortestRemaining
-    end
+--     -- Only return shortest if we found spells AND none were ready
+--     if foundAny and not foundReady and shortestRemaining then
+--         return shortestRemaining
+--     end
 
-    return nil
-end
+--     return nil
+-- end
+
+-- function OmniBar_AllBarSpellsOnCooldown(barKey)
+--     local bar = _G[barKey]
+--     if not bar or not bar.active then return false end
+
+--     -- No icons means nothing to track
+--     if #bar.active == 0 then return false end
+
+--     -- Check each active icon on the bar
+--     for _, icon in ipairs(bar.active) do
+--         if icon:IsVisible() then
+--             local start, duration = icon.cooldown:GetCooldownTimes()
+--             local isReady = (start == 0 or duration == 0)
+
+--             -- Handle charge-based spells
+--             if icon.charges ~= nil then
+--                 isReady = (icon.charges > 0)
+--             end
+
+--             if isReady then
+--                 return false -- Found a ready spell
+--             end
+--         end
+--     end
+
+--     return true -- All spells on cooldown
+-- end
 
 SLASH_OmniBar1 = "/ob"
 SLASH_OmniBar2 = "/omnibar"
@@ -5034,4 +5062,163 @@ SlashCmdList.OmniBar = function()
         InterfaceOptionsFrame_OpenToCategory(addonName)
         InterfaceOptionsFrame_OpenToCategory(addonName)
     end
+end
+
+
+
+-- Cache for bar lookups and spell indexes
+local barCache = {}
+local barSpellIndexCache = {}
+
+-- Helper to build/update spell index for a bar
+local function GetOrBuildSpellIndex(bar)
+    if not bar or not bar.active then return nil end
+
+    local cacheKey = bar.key
+    local lastUpdate = barSpellIndexCache[cacheKey] and barSpellIndexCache[cacheKey].lastUpdate or 0
+    local currentUpdate = bar.lastIconUpdate or 0
+
+    -- Rebuild index if stale
+    if currentUpdate > lastUpdate or not barSpellIndexCache[cacheKey] then
+        local index = {}
+        for _, icon in ipairs(bar.active) do
+            if icon:IsVisible() then
+                local spellID = icon.spellID
+                if not index[spellID] then
+                    index[spellID] = {}
+                end
+                index[spellID][#index[spellID] + 1] = icon
+            end
+        end
+
+        barSpellIndexCache[cacheKey] = {
+            index = index,
+            lastUpdate = currentUpdate
+        }
+    end
+
+    return barSpellIndexCache[cacheKey].index
+end
+
+function OmniBar_AllOnCooldown(barKey, spellIDs)
+    -- Cache bar lookup
+    local bar = barCache[barKey]
+    if not bar or bar.key ~= barKey then
+        bar = _G[barKey]
+        barCache[barKey] = bar
+    end
+
+    if not bar or not bar.active then return false end
+
+    -- Get spell index
+    local spellIndex = GetOrBuildSpellIndex(bar)
+    if not spellIndex then return false end
+
+    -- Check each spell using index (no nested loop)
+    for _, spellID in ipairs(spellIDs) do
+        local icons = spellIndex[spellID]
+        if icons then
+            for _, icon in ipairs(icons) do
+                -- Check if ready
+                local isReady = false
+
+                if icon.charges ~= nil then
+                    isReady = (icon.charges > 0)
+                else
+                    local start, duration = icon.cooldown:GetCooldownTimes()
+                    isReady = (start == 0 or duration == 0)
+                end
+
+                if isReady then
+                    return false -- Found ready spell
+                end
+            end
+        end
+    end
+
+    return true
+end
+
+function OmniBar_GetShortestCooldownIfAllOnCD(barKey, spellIDs)
+    -- Cache bar lookup
+    local bar = barCache[barKey]
+    if not bar or bar.key ~= barKey then
+        bar = _G[barKey]
+        barCache[barKey] = bar
+    end
+
+    if not bar or not bar.active then return nil end
+
+    -- Get spell index
+    local spellIndex = GetOrBuildSpellIndex(bar)
+    if not spellIndex then return nil end
+
+    -- Cache time lookup
+    local currentTime = GetTime()
+    local shortestRemaining = nil
+    local foundAny = false
+
+    -- Check each spell using index
+    for _, spellID in ipairs(spellIDs) do
+        local icons = spellIndex[spellID]
+        if icons then
+            for _, icon in ipairs(icons) do
+                foundAny = true
+
+                -- Check charges first
+                if icon.charges ~= nil and icon.charges > 0 then
+                    return nil -- Ready spell found
+                end
+
+                -- Check cooldown
+                local start, duration = icon.cooldown:GetCooldownTimes()
+                if start > 0 and duration > 0 then
+                    start = start * 0.001 -- Multiply instead of divide (faster)
+                    duration = duration * 0.001
+                    local remaining = (start + duration) - currentTime
+
+                    if remaining <= 0 then
+                        return nil -- Ready spell found
+                    end
+
+                    if not shortestRemaining or remaining < shortestRemaining then
+                        shortestRemaining = remaining
+                    end
+                else
+                    return nil -- No cooldown = ready
+                end
+            end
+        end
+    end
+
+    return foundAny and shortestRemaining or nil
+end
+
+function OmniBar_AllBarSpellsOnCooldown(barKey)
+    -- Cache bar lookup
+    local bar = barCache[barKey]
+    if not bar or bar.key ~= barKey then
+        bar = _G[barKey]
+        barCache[barKey] = bar
+    end
+
+    if not bar or not bar.active or #bar.active == 0 then return false end
+
+    -- Direct iteration (already optimal for this case)
+    for _, icon in ipairs(bar.active) do
+        if icon:IsVisible() then
+            -- Check charges first (cheaper)
+            if icon.charges ~= nil and icon.charges > 0 then
+                return false
+            end
+
+            -- Check cooldown
+            local start, duration = icon.cooldown:GetCooldownTimes()
+            if start == 0 or duration == 0 then
+                return false
+            end
+        end
+    end
+
+    return true
 end
